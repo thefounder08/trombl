@@ -32,13 +32,44 @@ class MenuScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        vibe == 'fomo' ? '⚡ fomo' : '🛌 jomo',
-                        style: TextStyle(
-                          color: accent,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                          fontSize: 12,
+                      // Tappable vibe chip — switches fomo ↔ jomo
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          ref.read(activeSessionProvider.notifier).switchVibe();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: accent.withValues(alpha: 0.3),
+                                width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                vibe == 'fomo' ? '⚡ fomo' : '🛌 jomo',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                vibe == 'fomo' ? '→ 🛌' : '→ ⚡',
+                                style: TextStyle(
+                                  color: accent.withValues(alpha: 0.5),
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       if (pickCount > 0) ...[

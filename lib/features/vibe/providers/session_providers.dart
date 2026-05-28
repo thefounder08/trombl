@@ -38,6 +38,15 @@ class ActiveSessionNotifier extends Notifier<Session?> {
     }
   }
 
+  /// Flip fomo ↔ jomo on the active session (updates DB + local state).
+  Future<void> switchVibe() async {
+    final session = state;
+    if (session == null) return;
+    final newVibe = session.vibe == 'fomo' ? 'jomo' : 'fomo';
+    await ref.read(sessionRepositoryProvider).switchVibe(session.id, newVibe);
+    state = session.copyWith(vibe: newVibe);
+  }
+
   void clear() => state = null;
 }
 

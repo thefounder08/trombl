@@ -57,6 +57,14 @@ class SessionRepository {
     await _client.from('picks').update({'done': done}).eq('id', pickId);
   }
 
+  /// Flip the vibe on an existing session.
+  Future<void> switchVibe(String sessionId, String newVibe) async {
+    await _client
+        .from('sessions')
+        .update({'vibe': newVibe})
+        .eq('id', sessionId);
+  }
+
   /// Wrap up a session.
   Future<void> wrapSession(String sessionId) async {
     await _client
