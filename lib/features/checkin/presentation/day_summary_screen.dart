@@ -6,6 +6,9 @@ import '../../../core/theme/trombl_theme.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/checkin_providers.dart';
 
+// Re-export so screens can use it
+export '../../vibe/providers/session_providers.dart' show streakProvider;
+
 class DaySummaryScreenArgs {
   const DaySummaryScreenArgs({
     required this.vibe,
@@ -108,7 +111,7 @@ class DaySummaryScreen extends ConsumerWidget {
   }
 }
 
-class _StatsRow extends StatelessWidget {
+class _StatsRow extends ConsumerWidget {
   const _StatsRow({
     required this.done,
     required this.total,
@@ -119,20 +122,21 @@ class _StatsRow extends StatelessWidget {
   final Color accent;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streak = ref.watch(streakProvider).valueOrNull ?? 0;
     return Row(
       children: [
-        _Stat(
-          value: '$done',
-          label: 'done',
-          accent: accent,
-        ),
+        _Stat(value: '$done', label: 'done', accent: accent),
         const SizedBox(width: 20),
-        _Stat(
-          value: '$total',
-          label: 'picked',
-          accent: TromblColors.textSub,
-        ),
+        _Stat(value: '$total', label: 'picked', accent: TromblColors.textSub),
+        if (streak > 1) ...[
+          const SizedBox(width: 20),
+          _Stat(
+            value: '🔥$streak',
+            label: 'day streak',
+            accent: TromblColors.fomo,
+          ),
+        ],
       ],
     );
   }

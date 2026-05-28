@@ -10,6 +10,7 @@ import '../../../shared/models/models.dart';
 import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../plans/providers/plan_providers.dart';
+import '../../vibe/providers/session_providers.dart' show streakProvider;
 
 final _memoryNodesProvider = FutureProvider.autoDispose<List<MemoryNode>>((ref) {
   return ref.watch(sessionRepositoryProvider).recentMemoryNodes(limit: 4);
@@ -194,6 +195,7 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final weeklyRead = ref.watch(_weeklyReadProvider);
     final myPlans = ref.watch(myPlansProvider);
+    final streak = ref.watch(streakProvider).valueOrNull ?? 0;
 
     return Scaffold(
       body: SafeArea(
@@ -211,11 +213,33 @@ class ProfileScreen extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        GestureDetector(
-                          onTap: () => context.go('/menu'),
-                          child: const Text('← menu',
-                              style: TextStyle(
-                                  color: TromblColors.textSub)),
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () => context.go('/menu'),
+                              child: const Text('← menu',
+                                  style: TextStyle(
+                                      color: TromblColors.textSub)),
+                            ),
+                            if (streak > 1) ...[
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: TromblColors.fomo.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '🔥$streak days',
+                                  style: const TextStyle(
+                                      color: TromblColors.fomo,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         ref.watch(_currentProfileProvider).maybeWhen(
                           data: (profile) => GestureDetector(
@@ -246,8 +270,8 @@ class ProfileScreen extends ConsumerWidget {
                           ),
                           orElse: () => const SizedBox.shrink(),
                         ),
-                      ],
-                    ),
+                      ], // end inner Row children
+                    ), // end header Row
                     const SizedBox(height: 18),
                     // Trom's weekly read
                     const Text('TROM\'S READ ON YOU',

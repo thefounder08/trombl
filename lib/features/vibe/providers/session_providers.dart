@@ -44,6 +44,39 @@ class ActiveSessionNotifier extends Notifier<Session?> {
 final activeSessionProvider =
     NotifierProvider<ActiveSessionNotifier, Session?>(ActiveSessionNotifier.new);
 
+/// Consecutive days with a wrapped session (streak counter).
+final streakProvider = FutureProvider.autoDispose<int>((ref) async {
+  final repo = ref.watch(sessionRepositoryProvider);
+  final all = await repo.recentSessions(days: 60);
+  final wrapped = all.where((s) => s.wrappedAt != null).toList()
+    ..sort((a, b) =>
+        (b.startedAt ?? DateTime(0)).compareTo(a.startedAt ?? DateTime(0)));
+  if (wrapped.isEmpty) return 0;
+
+  int streak = 0;
+  DateTime? prevDay;
+  for (final s in wrapped) {
+    final d = s.startedAt;
+    if (d == null) continue;
+    final day = DateTime(d.year, d.month, d.day);
+    if (prevDay == null) {
+      prevDay = day;
+      streak = 1;
+    } else {
+      final diff = prevDay.difference(day).inDays;
+      if (diff == 1) {
+        streak++;
+        prevDay = day;
+      } else if (diff == 0) {
+        continue; // duplicate same-day session
+      } else {
+        break; // gap — streak ends
+      }
+    }
+  }
+  return streak;
+});
+
 /// The user's city from their profile, cached in memory.
 final cityProvider =
     StateNotifierProvider<CityNotifier, String?>((ref) {
