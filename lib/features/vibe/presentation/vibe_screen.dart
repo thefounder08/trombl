@@ -12,7 +12,8 @@ class VibeScreen extends ConsumerWidget {
 
   Future<void> _pick(BuildContext context, WidgetRef ref, String vibe) async {
     HapticFeedback.heavyImpact();
-    final err = await ref.read(activeSessionProvider.notifier).start(vibe);
+    final city = ref.read(cityProvider);
+    final err = await ref.read(activeSessionProvider.notifier).start(vibe, city: city);
     if (err != null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context)
@@ -29,6 +30,8 @@ class VibeScreen extends ConsumerWidget {
     ref.listen(activeSessionProvider, (_, session) {
       if (session != null && context.mounted) context.go('/menu');
     });
+
+    final city = ref.watch(cityProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -48,6 +51,34 @@ class VibeScreen extends ConsumerWidget {
                   height: 1.15,
                 ),
               ),
+              const SizedBox(height: 12),
+              // City chip
+              GestureDetector(
+                onTap: () => _showCityPicker(context, ref, city),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('📍',
+                          style: TextStyle(fontSize: 12)),
+                      const SizedBox(width: 4),
+                      Text(
+                        city ?? 'set city',
+                        style: const TextStyle(
+                            color: TromblColors.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const Spacer(),
               _VibeCard(
                 emoji: '⚡',
@@ -65,6 +96,94 @@ class VibeScreen extends ConsumerWidget {
                 onTap: () => _pick(context, ref, 'jomo'),
               ),
               const Spacer(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCityPicker(BuildContext context, WidgetRef ref, String? current) {
+    final ctrl = TextEditingController(text: current ?? '');
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: TromblColors.bg,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('where are you?',
+                  style: TextStyle(
+                      fontFamily: TromblText.serif,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: TromblColors.text)),
+              const SizedBox(height: 6),
+              const Text('helps trom give more relevant picks.',
+                  style: TextStyle(
+                      color: TromblColors.textMuted, fontSize: 13)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                style:
+                    const TextStyle(color: TromblColors.text, fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: 'mumbai, delhi, bangalore...',
+                  hintStyle:
+                      const TextStyle(color: TromblColors.textMuted),
+                  filled: true,
+                  fillColor: TromblColors.card,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                ),
+                onSubmitted: (v) async {
+                  final city = v.trim();
+                  if (city.isNotEmpty) {
+                    await ref.read(cityProvider.notifier).setCity(city);
+                  }
+                  if (context.mounted) Navigator.of(context).pop();
+                },
+              ),
+              const SizedBox(height: 14),
+              GestureDetector(
+                onTap: () async {
+                  final city = ctrl.text.trim();
+                  if (city.isNotEmpty) {
+                    await ref.read(cityProvider.notifier).setCity(city);
+                  }
+                  if (context.mounted) Navigator.of(context).pop();
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: BoxDecoration(
+                    color: TromblColors.jomo,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Text('set →',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Color(0xFF0B0B0D),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15)),
+                ),
+              ),
             ],
           ),
         ),

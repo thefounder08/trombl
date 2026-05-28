@@ -118,10 +118,11 @@ class SessionRepository {
     }
   }
 
-  Future<void> updateProfile({String? displayName, String? handle}) async {
+  Future<void> updateProfile({String? displayName, String? handle, String? city}) async {
     final data = <String, dynamic>{};
     if (displayName != null) data['display_name'] = displayName;
     if (handle != null) data['handle'] = handle;
+    if (city != null) data['city'] = city;
     if (data.isEmpty) return;
     await _client.from('profiles').upsert({'id': _uid, ...data});
   }

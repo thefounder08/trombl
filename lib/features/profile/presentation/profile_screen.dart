@@ -66,81 +66,121 @@ final _recentSessionsProvider = FutureProvider.autoDispose<List<Session>>((ref) 
   return ref.watch(sessionRepositoryProvider).recentSessions();
 });
 
-void _showEditName(BuildContext context, WidgetRef ref, Profile? profile) {
-  final ctrl = TextEditingController(text: profile?.displayName ?? '');
+void _showEditProfile(BuildContext context, WidgetRef ref, Profile? profile) {
+  final nameCtrl = TextEditingController(text: profile?.displayName ?? '');
+  final handleCtrl = TextEditingController(
+      text: profile?.handle != null ? '@${profile!.handle}' : '');
+  final cityCtrl = TextEditingController(text: profile?.city ?? '');
+
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: TromblColors.bg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('what should trom call you?',
-                style: TextStyle(
-                    fontFamily: TromblText.serif,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: TromblColors.text)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: ctrl,
-              autofocus: true,
-              style: const TextStyle(color: TromblColors.text, fontSize: 15),
-              decoration: InputDecoration(
-                hintText: 'your name',
-                hintStyle:
-                    const TextStyle(color: TromblColors.textMuted),
-                filled: true,
-                fillColor: TromblColors.card,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+    builder: (_) => StatefulBuilder(
+      builder: (ctx, setState) => Padding(
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: TromblColors.bg,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('your profile',
+                  style: TextStyle(
+                      fontFamily: TromblText.serif,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: TromblColors.text)),
+              const SizedBox(height: 18),
+              _ProfileField(ctrl: nameCtrl, hint: 'your name', label: 'NAME'),
+              const SizedBox(height: 10),
+              _ProfileField(
+                  ctrl: handleCtrl, hint: '@handle', label: 'HANDLE'),
+              const SizedBox(height: 10),
+              _ProfileField(ctrl: cityCtrl, hint: 'your city', label: 'CITY'),
+              const SizedBox(height: 18),
+              GestureDetector(
+                onTap: () async {
+                  final name = nameCtrl.text.trim();
+                  final rawHandle = handleCtrl.text.trim();
+                  final handle = rawHandle.startsWith('@')
+                      ? rawHandle.substring(1)
+                      : rawHandle;
+                  final city = cityCtrl.text.trim();
+                  await ref.read(sessionRepositoryProvider).updateProfile(
+                        displayName: name.isNotEmpty ? name : null,
+                        handle: handle.isNotEmpty ? handle : null,
+                        city: city.isNotEmpty ? city : null,
+                      );
+                  ref.invalidate(_currentProfileProvider);
+                  if (context.mounted) Navigator.of(context).pop();
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: BoxDecoration(
+                    color: TromblColors.jomo,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Text('save →',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Color(0xFF0B0B0D),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15)),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
               ),
-            ),
-            const SizedBox(height: 14),
-            GestureDetector(
-              onTap: () async {
-                final name = ctrl.text.trim();
-                if (name.isEmpty) return;
-                await ref
-                    .read(sessionRepositoryProvider)
-                    .updateProfile(displayName: name);
-                ref.invalidate(_currentProfileProvider);
-                if (context.mounted) Navigator.of(context).pop();
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                decoration: BoxDecoration(
-                  color: TromblColors.jomo,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Text('save →',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Color(0xFF0B0B0D),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15)),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),
   );
+}
+
+class _ProfileField extends StatelessWidget {
+  const _ProfileField(
+      {required this.ctrl, required this.hint, required this.label});
+  final TextEditingController ctrl;
+  final String hint;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                color: TromblColors.textMuted,
+                fontSize: 9,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: ctrl,
+          style: const TextStyle(color: TromblColors.text, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: TromblColors.textMuted),
+            filled: true,
+            fillColor: TromblColors.card,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class ProfileScreen extends ConsumerWidget {
@@ -168,14 +208,26 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   ref.watch(_currentProfileProvider).maybeWhen(
                         data: (profile) => GestureDetector(
-                          onTap: () => _showEditName(context, ref, profile),
-                          child: Text(
-                            profile?.displayName ??
-                                (profile?.handle != null
-                                    ? '@${profile!.handle}'
-                                    : 'set name →'),
-                            style: const TextStyle(
-                                color: TromblColors.textMuted, fontSize: 12),
+                          onTap: () => _showEditProfile(context, ref, profile),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                profile?.displayName ??
+                                    (profile?.handle != null
+                                        ? '@${profile!.handle}'
+                                        : 'set name →'),
+                                style: const TextStyle(
+                                    color: TromblColors.textMuted, fontSize: 13,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                              if (profile?.city != null)
+                                Text(
+                                  profile!.city!,
+                                  style: const TextStyle(
+                                      color: TromblColors.textMuted, fontSize: 11),
+                                ),
+                            ],
                           ),
                         ),
                         orElse: () => const SizedBox.shrink(),

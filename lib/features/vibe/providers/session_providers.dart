@@ -4,7 +4,6 @@ import '../../../core/providers.dart';
 import '../../../shared/result.dart';
 import '../../../shared/models/models.dart';
 import '../../../shared/repositories/session_repository.dart';
-import '../../../shared/result.dart';
 
 final sessionRepositoryProvider = Provider<SessionRepository>((ref) {
   return SessionRepository(ref.watch(supabaseProvider));
@@ -44,3 +43,26 @@ class ActiveSessionNotifier extends Notifier<Session?> {
 
 final activeSessionProvider =
     NotifierProvider<ActiveSessionNotifier, Session?>(ActiveSessionNotifier.new);
+
+/// The user's city from their profile, cached in memory.
+final cityProvider =
+    StateNotifierProvider<CityNotifier, String?>((ref) {
+  return CityNotifier(ref.watch(sessionRepositoryProvider));
+});
+
+class CityNotifier extends StateNotifier<String?> {
+  CityNotifier(this._repo) : super(null) {
+    _load();
+  }
+  final SessionRepository _repo;
+
+  Future<void> _load() async {
+    final profile = await _repo.getProfile();
+    if (profile?.city != null) state = profile!.city;
+  }
+
+  Future<void> setCity(String city) async {
+    state = city;
+    await _repo.updateProfile(city: city);
+  }
+}

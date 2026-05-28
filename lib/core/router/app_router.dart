@@ -97,6 +97,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/join-plan',
         pageBuilder: (_, s) => _page(s.pageKey, const JoinPlanScreen()),
       ),
+      // Deep link: trombl.com/p/{token} — auto-joins the plan
+      GoRoute(
+        path: '/p/:token',
+        pageBuilder: (_, s) => _page(
+          s.pageKey,
+          JoinPlanScreen(initialToken: s.pathParameters['token']),
+        ),
+      ),
       GoRoute(
         path: '/history',
         pageBuilder: (_, s) => _page(s.pageKey, const HistoryScreen()),

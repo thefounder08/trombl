@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/trombl_theme.dart';
@@ -127,6 +129,37 @@ class ResponseScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+              ),
+              const SizedBox(height: 10),
+              // Share reaction — only shown once loaded
+              reaction.maybeWhen(
+                data: (text) => GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Share.share(
+                      '${args.optionLabel}\n\n$text\n\n— trombl',
+                      subject: args.optionLabel,
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: TromblColors.card,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text(
+                      'share this 🔗',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: TromblColors.textSub,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                orElse: () => const SizedBox.shrink(),
               ),
               const SizedBox(height: 10),
               GestureDetector(

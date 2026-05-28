@@ -7,16 +7,26 @@ import '../../../shared/result.dart';
 import '../providers/plan_providers.dart';
 
 class JoinPlanScreen extends ConsumerStatefulWidget {
-  const JoinPlanScreen({super.key});
+  const JoinPlanScreen({super.key, this.initialToken});
+  final String? initialToken;
 
   @override
   ConsumerState<JoinPlanScreen> createState() => _JoinPlanScreenState();
 }
 
 class _JoinPlanScreenState extends ConsumerState<JoinPlanScreen> {
-  final _ctrl = TextEditingController();
+  late final TextEditingController _ctrl;
   bool _loading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialToken ?? '');
+    if (widget.initialToken != null && widget.initialToken!.isNotEmpty) {
+      Future.microtask(_join);
+    }
+  }
 
   @override
   void dispose() {
