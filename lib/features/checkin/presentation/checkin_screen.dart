@@ -186,6 +186,7 @@ class _WrapButton extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () async {
+        HapticFeedback.heavyImpact();
         await ref.read(checkinPicksProvider.notifier).wrapDay();
         if (!context.mounted) return;
         context.pushReplacement('/summary', extra: DaySummaryScreenArgs(

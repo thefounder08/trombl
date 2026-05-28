@@ -60,6 +60,49 @@ class HistoryScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            // Stats row
+            historyAsync.maybeWhen(
+              data: (history) {
+                if (history.isEmpty) return const SizedBox.shrink();
+                final fomo = history.where((e) => e.$1.vibe == 'fomo').length;
+                final jomo = history.length - fomo;
+                final allPicks =
+                    history.expand((e) => e.$2).toList();
+                final doneRate = allPicks.isEmpty
+                    ? 0
+                    : (allPicks.where((p) => p.done).length * 100 ~/
+                        allPicks.length);
+                return Padding(
+                  padding:
+                      const EdgeInsets.fromLTRB(22, 12, 22, 0),
+                  child: Row(
+                    children: [
+                      _StatChip(
+                          label: '${history.length} days',
+                          color: TromblColors.textSub),
+                      const SizedBox(width: 8),
+                      if (fomo > 0)
+                        _StatChip(
+                            label: '$fomo ⚡',
+                            color: TromblColors.fomo),
+                      if (fomo > 0) const SizedBox(width: 8),
+                      if (jomo > 0)
+                        _StatChip(
+                            label: '$jomo 🛌',
+                            color: TromblColors.jomo),
+                      if (allPicks.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        _StatChip(
+                            label: '$doneRate% done',
+                            color: TromblColors.textSub),
+                      ],
+                    ],
+                  ),
+                );
+              },
+              orElse: () => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               child: historyAsync.when(
                 loading: () => const Center(
@@ -186,6 +229,31 @@ class _DayCard extends StatelessWidget {
     final months = ['jan','feb','mar','apr','may','jun',
                     'jul','aug','sep','oct','nov','dec'];
     return '${months[d.month - 1]} ${d.day}';
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 
