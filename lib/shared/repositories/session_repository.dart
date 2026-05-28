@@ -127,6 +127,39 @@ class SessionRepository {
     await _client.from('profiles').upsert({'id': _uid, ...data});
   }
 
+  /// Save a memory node trom generated about the user.
+  Future<void> saveMemoryNode({
+    required String type,
+    required String content,
+    double relevanceScore = 0.7,
+  }) async {
+    try {
+      await _client.from('memory_nodes').insert({
+        'user_id': _uid,
+        'type': type,
+        'content': content,
+        'relevance_score': relevanceScore,
+      });
+    } catch (_) {}
+  }
+
+  /// Fetch recent memory nodes, newest first.
+  Future<List<MemoryNode>> recentMemoryNodes({int limit = 5}) async {
+    try {
+      final rows = await _client
+          .from('memory_nodes')
+          .select()
+          .eq('user_id', _uid)
+          .order('created_at', ascending: false)
+          .limit(limit);
+      return (rows as List)
+          .map((r) => MemoryNode.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<Map<String, Profile>> profilesForUsers(List<String> userIds) async {
     if (userIds.isEmpty) return {};
     try {

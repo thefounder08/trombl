@@ -33,4 +33,14 @@ here is the user's week: $stats
 give one sharp, funny, self-aware one-liner reading their pattern back to them.
 under 12 words. the kind of thing they'd want to screenshot.
 ''';
+
+  /// Short memory note about the user after wrapping a day.
+  /// Returns a single sentence starting with "you" — trom speaking directly to them.
+  static String memoryNode(String vibe, List<String> labels) => '''
+$_base
+the user just wrapped a $vibe day. things they actually did: ${labels.isEmpty ? "nothing" : labels.join(", ")}.
+write ONE short observation about them as a person, starting with "you".
+like "you always go for the late-night option." be specific to what they actually picked.
+under 15 words. no punctuation at the end. this will be stored as trom's memory of them.
+''';
 }

@@ -11,6 +11,10 @@ import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../plans/providers/plan_providers.dart';
 
+final _memoryNodesProvider = FutureProvider.autoDispose<List<MemoryNode>>((ref) {
+  return ref.watch(sessionRepositoryProvider).recentMemoryNodes(limit: 4);
+});
+
 final _recentWrappedProvider = FutureProvider.autoDispose<List<Session>>((ref) async {
   final all = await ref.watch(_recentSessionsProvider.future);
   return all.where((s) => s.wrappedAt != null).take(3).toList();
@@ -193,156 +197,177 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onTap: () => context.go('/menu'),
-                    child: const Text('← menu',
-                        style: TextStyle(color: TromblColors.textSub)),
-                  ),
-                  ref.watch(_currentProfileProvider).maybeWhen(
-                        data: (profile) => GestureDetector(
-                          onTap: () => _showEditProfile(context, ref, profile),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                profile?.displayName ??
-                                    (profile?.handle != null
-                                        ? '@${profile!.handle}'
-                                        : 'set name →'),
-                                style: const TextStyle(
-                                    color: TromblColors.textMuted, fontSize: 13,
-                                    fontWeight: FontWeight.w600),
-                              ),
-                              if (profile?.city != null)
-                                Text(
-                                  profile!.city!,
-                                  style: const TextStyle(
-                                      color: TromblColors.textMuted, fontSize: 11),
-                                ),
-                            ],
-                          ),
+        child: Column(
+          children: [
+            // Scrollable content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 22, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        GestureDetector(
+                          onTap: () => context.go('/menu'),
+                          child: const Text('← menu',
+                              style: TextStyle(
+                                  color: TromblColors.textSub)),
                         ),
-                        orElse: () => const SizedBox.shrink(),
-                      ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              const Text('TROM\'S READ ON YOU',
-                  style: TextStyle(
-                      color: TromblColors.textMuted,
-                      fontSize: 10,
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              weeklyRead.when(
-                loading: () => const _TromTyping(),
-                error: (_, __) => const Text(
-                  "trom's still figuring u out.\npick a few things and patterns show up here.",
-                  style: TextStyle(
-                      fontFamily: TromblText.serif,
-                      fontSize: 22,
-                      color: TromblColors.text,
-                      height: 1.25),
-                ),
-                data: (text) => text.isEmpty
-                    ? const Text(
+                        ref.watch(_currentProfileProvider).maybeWhen(
+                          data: (profile) => GestureDetector(
+                            onTap: () =>
+                                _showEditProfile(context, ref, profile),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  profile?.displayName ??
+                                      (profile?.handle != null
+                                          ? '@${profile!.handle}'
+                                          : 'set name →'),
+                                  style: const TextStyle(
+                                      color: TromblColors.textMuted,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                if (profile?.city != null)
+                                  Text(
+                                    profile!.city!,
+                                    style: const TextStyle(
+                                        color: TromblColors.textMuted,
+                                        fontSize: 11),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          orElse: () => const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    // Trom's weekly read
+                    const Text('TROM\'S READ ON YOU',
+                        style: TextStyle(
+                            color: TromblColors.textMuted,
+                            fontSize: 10,
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 12),
+                    weeklyRead.when(
+                      loading: () => const _TromTyping(),
+                      error: (_, __) => const Text(
                         "trom's still figuring u out.\npick a few things and patterns show up here.",
                         style: TextStyle(
                             fontFamily: TromblText.serif,
                             fontSize: 22,
                             color: TromblColors.text,
                             height: 1.25),
-                      )
-                    : Text(
-                        text,
-                        style: const TextStyle(
-                            fontFamily: TromblText.serif,
-                            fontSize: 22,
-                            color: TromblColors.text,
-                            height: 1.25),
                       ),
-              ),
-              const SizedBox(height: 32),
-              // Plans section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('PAST DAYS',
-                      style: TextStyle(
-                          color: TromblColors.textMuted,
-                          fontSize: 10,
-                          letterSpacing: 2,
-                          fontWeight: FontWeight.w700)),
-                  GestureDetector(
-                    onTap: () => context.push('/history'),
-                    child: const Text('see all →',
-                        style: TextStyle(
-                            color: TromblColors.textMuted, fontSize: 12)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _RecentDaysSummary(),
-              const SizedBox(height: 28),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('MY PLANS',
-                      style: TextStyle(
-                          color: TromblColors.textMuted,
-                          fontSize: 10,
-                          letterSpacing: 2,
-                          fontWeight: FontWeight.w700)),
-                  GestureDetector(
-                    onTap: () => context.push('/join-plan'),
-                    child: const Text('join a plan →',
-                        style: TextStyle(
-                            color: TromblColors.textMuted, fontSize: 12)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              myPlans.when(
-                loading: () => const Text('loading...',
-                    style: TextStyle(
-                        color: TromblColors.textMuted, fontSize: 13)),
-                error: (_, __) => const SizedBox.shrink(),
-                data: (plans) => plans.isEmpty
-                    ? const Text(
-                        'no plans yet. make one from the response screen.',
-                        style: TextStyle(
-                            color: TromblColors.textMuted, fontSize: 13),
-                      )
-                    : Column(
-                        children: plans
-                            .take(5)
-                            .map((p) => _PlanRow(plan: p))
-                            .toList(),
-                      ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () async {
-                  await ref.read(supabaseProvider).auth.signOut();
-                  ref.read(activeSessionProvider.notifier).clear();
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text('start over',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: TromblColors.textSub)),
+                      data: (text) => text.isEmpty
+                          ? const Text(
+                              "trom's still figuring u out.\npick a few things and patterns show up here.",
+                              style: TextStyle(
+                                  fontFamily: TromblText.serif,
+                                  fontSize: 22,
+                                  color: TromblColors.text,
+                                  height: 1.25),
+                            )
+                          : Text(
+                              text,
+                              style: const TextStyle(
+                                  fontFamily: TromblText.serif,
+                                  fontSize: 22,
+                                  color: TromblColors.text,
+                                  height: 1.25),
+                            ),
+                    ),
+                    // Memory nodes
+                    _MemorySection(),
+                    const SizedBox(height: 28),
+                    // Past days
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('PAST DAYS',
+                            style: TextStyle(
+                                color: TromblColors.textMuted,
+                                fontSize: 10,
+                                letterSpacing: 2,
+                                fontWeight: FontWeight.w700)),
+                        GestureDetector(
+                          onTap: () => context.push('/history'),
+                          child: const Text('see all →',
+                              style: TextStyle(
+                                  color: TromblColors.textMuted,
+                                  fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _RecentDaysSummary(),
+                    const SizedBox(height: 28),
+                    // My plans
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('MY PLANS',
+                            style: TextStyle(
+                                color: TromblColors.textMuted,
+                                fontSize: 10,
+                                letterSpacing: 2,
+                                fontWeight: FontWeight.w700)),
+                        GestureDetector(
+                          onTap: () => context.push('/join-plan'),
+                          child: const Text('join a plan →',
+                              style: TextStyle(
+                                  color: TromblColors.textMuted,
+                                  fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    myPlans.when(
+                      loading: () => const Text('loading...',
+                          style: TextStyle(
+                              color: TromblColors.textMuted, fontSize: 13)),
+                      error: (_, __) => const SizedBox.shrink(),
+                      data: (plans) => plans.isEmpty
+                          ? const Text(
+                              'no plans yet. make one from the response screen.',
+                              style: TextStyle(
+                                  color: TromblColors.textMuted,
+                                  fontSize: 13),
+                            )
+                          : Column(
+                              children: plans
+                                  .take(5)
+                                  .map((p) => _PlanRow(plan: p))
+                                  .toList(),
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            // Pinned sign-out
+            GestureDetector(
+              onTap: () async {
+                await ref.read(supabaseProvider).auth.signOut();
+                ref.read(activeSessionProvider.notifier).clear();
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Text('start over',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: TromblColors.textSub)),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -437,6 +462,70 @@ class _RecentDaysSummary extends ConsumerWidget {
     if (diff == 0) return 'today';
     if (diff == 1) return 'yesterday';
     return '$diff days ago';
+  }
+}
+
+class _MemorySection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nodes = ref.watch(_memoryNodesProvider);
+    return nodes.maybeWhen(
+      data: (list) {
+        if (list.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 28),
+            const Text('TROM REMEMBERS',
+                style: TextStyle(
+                    color: TromblColors.textMuted,
+                    fontSize: 10,
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            ...list.map((node) => _MemoryChip(content: node.content)),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _MemoryChip extends StatelessWidget {
+  const _MemoryChip({required this.content});
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: TromblColors.card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: TromblColors.jomo.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('💭 ',
+              style: TextStyle(fontSize: 13)),
+          Expanded(
+            child: Text(
+              content,
+              style: const TextStyle(
+                color: TromblColors.textSub,
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

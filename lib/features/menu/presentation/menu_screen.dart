@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/trombl_theme.dart';
 import '../../vibe/providers/session_providers.dart';
+import '../../checkin/providers/checkin_providers.dart';
 import '../data/categories.dart';
 import 'widgets/options_sheet.dart';
 
@@ -17,6 +18,7 @@ class MenuScreen extends ConsumerWidget {
     final vibe = session?.vibe ?? 'fomo';
     final accent = TromblColors.accentFor(vibe);
     final categories = Categories.forVibe(vibe);
+    final pickCount = ref.watch(todayPickCountProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -28,14 +30,37 @@ class MenuScreen extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    vibe == 'fomo' ? '⚡ fomo' : '🛌 jomo',
-                    style: TextStyle(
-                      color: accent,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                      fontSize: 12,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        vibe == 'fomo' ? '⚡ fomo' : '🛌 jomo',
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (pickCount > 0) ...[
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '$pickCount picked',
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   Row(
                     children: [
@@ -55,7 +80,8 @@ class MenuScreen extends ConsumerWidget {
                         onTap: () => context.push('/profile'),
                         child: const Text(
                           '○',
-                          style: TextStyle(color: TromblColors.textSub, fontSize: 18),
+                          style:
+                              TextStyle(color: TromblColors.textSub, fontSize: 18),
                         ),
                       ),
                     ],
@@ -66,9 +92,7 @@ class MenuScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
               child: Text(
-                vibe == 'fomo'
-                    ? 'ok go. what first?'
-                    : "what's calling to you?",
+                _greeting(vibe),
                 style: const TextStyle(
                   fontFamily: TromblText.serif,
                   fontSize: 26,
@@ -98,6 +122,21 @@ class MenuScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _greeting(String vibe) {
+    final hour = DateTime.now().hour;
+    if (vibe == 'fomo') {
+      if (hour < 12) return 'ok go. what first?';
+      if (hour < 17) return 'afternoon mode. pick something.';
+      if (hour < 21) return "evening's yours. make it count.";
+      return "night's still young. what's it?";
+    } else {
+      if (hour < 12) return 'slow morning. what calls to you?';
+      if (hour < 17) return 'cozy hours. pick your vibe.';
+      if (hour < 21) return "evening in. what's the move?";
+      return 'night in. pure jomo.';
+    }
   }
 }
 

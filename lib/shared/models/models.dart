@@ -80,3 +80,19 @@ class PlanMember with _$PlanMember {
   factory PlanMember.fromJson(Map<String, dynamic> json) =>
       _$PlanMemberFromJson(json);
 }
+
+/// Mirrors public.memory_nodes — trom's observations about you.
+@freezed
+class MemoryNode with _$MemoryNode {
+  const factory MemoryNode({
+    required String id,
+    @JsonKey(name: 'user_id') required String userId,
+    required String type,
+    required String content,
+    @JsonKey(name: 'relevance_score') double? relevanceScore,
+    @JsonKey(name: 'created_at') DateTime? createdAt,
+  }) = _MemoryNode;
+
+  factory MemoryNode.fromJson(Map<String, dynamic> json) =>
+      _$MemoryNodeFromJson(json);
+}

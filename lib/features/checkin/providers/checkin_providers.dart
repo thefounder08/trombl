@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/ai/models/llm_message.dart';
@@ -34,9 +36,43 @@ class CheckinNotifier extends AutoDisposeAsyncNotifier<List<Pick>> {
   Future<void> wrapDay() async {
     final session = ref.read(activeSessionProvider);
     if (session == null) return;
+
+    final picks = state.valueOrNull ?? [];
+    final doneLabels =
+        picks.where((p) => p.done).map((p) => p.label).toList();
+
+    // Wrap the session first
     await ref.read(sessionRepositoryProvider).wrapSession(session.id);
+
+    // Fire-and-forget: generate + store a memory node
+    unawaited(_generateMemoryNode(session.vibe, doneLabels));
+  }
+
+  Future<void> _generateMemoryNode(
+      String vibe, List<String> doneLabels) async {
+    if (doneLabels.isEmpty) return; // nothing to remember
+    try {
+      final Result<String> result = await ref.read(llmProvider).generate(
+            LlmRequest(
+              system: SystemPrompts.memoryNode(vibe, doneLabels),
+              prompt: 'write the memory note.',
+            ),
+          );
+      if (result case Success(:final data)) {
+        await ref.read(sessionRepositoryProvider).saveMemoryNode(
+              type: 'observation',
+              content: data.trim(),
+            );
+      }
+    } catch (_) {}
   }
 }
+
+/// Live pick count for the current session — used by menu screen.
+final todayPickCountProvider = Provider.autoDispose<int>((ref) {
+  final picks = ref.watch(checkinPicksProvider);
+  return picks.maybeWhen(data: (p) => p.length, orElse: () => 0);
+});
 
 typedef DaySummaryArgs = ({
   String vibe,
