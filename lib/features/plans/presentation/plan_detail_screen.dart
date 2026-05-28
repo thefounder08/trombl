@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
@@ -81,6 +82,11 @@ class PlanDetailScreen extends ConsumerWidget {
                             color: TromblColors.textSub, fontSize: 14)),
                   ],
                   const SizedBox(height: 28),
+                  // Share code — only for owners
+                  if (isOwner) ...[
+                    _ShareCodeRow(token: plan.shareToken, accent: accent),
+                    const SizedBox(height: 24),
+                  ],
                   // RSVP row — only for non-owners
                   if (!isOwner) ...[
                     myMemberAsync.when(
@@ -251,6 +257,87 @@ class _RsvpChip extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ShareCodeRow extends StatelessWidget {
+  const _ShareCodeRow({required this.token, required this.accent});
+  final String token;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'INVITE CODE',
+          style: TextStyle(
+            color: TromblColors.textMuted,
+            fontSize: 10,
+            letterSpacing: 2,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Clipboard.setData(ClipboardData(text: token));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('code copied'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    token,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                Share.share(
+                  "join my trombl plan! code: $token\nhttps://trombl.com/p/$token",
+                  subject: "join my plan on trombl",
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: TromblColors.card,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text('share 🔗',
+                    style: TextStyle(
+                        color: TromblColors.textSub, fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

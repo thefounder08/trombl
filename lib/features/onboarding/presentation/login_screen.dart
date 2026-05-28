@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,6 +22,7 @@ class LoginScreen extends HookConsumerWidget {
     final loading = useState(false);
     final sent = useState(false);
     final sentEmail = useState('');
+    final resendCooldown = useState(0); // seconds remaining before resend allowed
 
     Future<void> sendOtp() async {
       final raw = email.text.trim().toLowerCase();
@@ -35,6 +38,15 @@ class LoginScreen extends HookConsumerWidget {
         await ref.read(supabaseProvider).auth.signInWithOtp(email: raw);
         sentEmail.value = raw;
         sent.value = true;
+        // Start 30s resend cooldown
+        resendCooldown.value = 30;
+        Timer.periodic(const Duration(seconds: 1), (t) {
+          if (resendCooldown.value <= 0) {
+            t.cancel();
+          } else {
+            resendCooldown.value--;
+          }
+        });
       } catch (e) {
         debugPrint('sendOtp error: $e');
         final msg = e is AuthException ? e.message : e.toString();
@@ -191,16 +203,39 @@ class LoginScreen extends HookConsumerWidget {
                   onTap: loading.value ? null : verifyOtp,
                 ),
                 const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: loading.value ? null : () {
-                    sent.value = false;
-                    otp.clear();
-                  },
-                  child: const Text(
-                    'wrong email? go back',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: loading.value ? null : () {
+                        sent.value = false;
+                        otp.clear();
+                      },
+                      child: const Text(
+                        'wrong email?',
+                        style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
+                      ),
+                    ),
+                    const Text(' · ',
+                        style: TextStyle(color: TromblColors.textMuted, fontSize: 13)),
+                    GestureDetector(
+                      onTap: (loading.value || resendCooldown.value > 0)
+                          ? null
+                          : sendOtp,
+                      child: Text(
+                        resendCooldown.value > 0
+                            ? 'resend in ${resendCooldown.value}s'
+                            : 'resend code',
+                        style: TextStyle(
+                          color: resendCooldown.value > 0
+                              ? TromblColors.textMuted
+                              : TromblColors.jomo,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],
