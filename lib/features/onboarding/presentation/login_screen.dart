@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -35,9 +34,10 @@ class LoginScreen extends HookConsumerWidget {
         sent.value = true;
       } catch (e) {
         debugPrint('sendOtp error: $e');
+        final msg = e is AuthException ? e.message : e.toString();
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("that didn't go through. try again?")),
+            SnackBar(content: Text(msg), duration: const Duration(seconds: 6)),
           );
         }
       } finally {
@@ -47,9 +47,9 @@ class LoginScreen extends HookConsumerWidget {
 
     Future<void> verifyOtp() async {
       final code = otp.text.trim();
-      if (code.length != 6) {
+      if (code.length < 6) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("enter the 6-digit code from ur email.")),
+          const SnackBar(content: Text("enter the full code from ur email.")),
         );
         return;
       }
@@ -63,9 +63,10 @@ class LoginScreen extends HookConsumerWidget {
         // router will redirect automatically via authStateProvider
       } catch (e) {
         debugPrint('verifyOtp error: $e');
+        final msg = e is AuthException ? e.message : e.toString();
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("wrong code. check ur email and try again.")),
+            SnackBar(content: Text(msg), duration: const Duration(seconds: 6)),
           );
         }
       } finally {
@@ -97,7 +98,7 @@ class LoginScreen extends HookConsumerWidget {
               const SizedBox(height: 10),
               Text(
                 sent.value
-                    ? 'enter the 6-digit code trom sent to ${sentEmail.value}'
+                    ? 'enter the code trom sent to ${sentEmail.value}'
                     : 'drop ur email — trom sends a code, no passwords.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13.5, color: TromblColors.textSub, height: 1.5),
@@ -147,20 +148,21 @@ class LoginScreen extends HookConsumerWidget {
               ] else ...[
                 TextField(
                   controller: otp,
-                  keyboardType: TextInputType.number,
+                  keyboardType: TextInputType.visiblePassword,
                   textAlign: TextAlign.center,
-                  maxLength: 6,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: 8,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   style: const TextStyle(
                     color: TromblColors.text,
                     fontWeight: FontWeight.w700,
-                    fontSize: 28,
-                    letterSpacing: 10,
+                    fontSize: 26,
+                    letterSpacing: 8,
                   ),
                   decoration: InputDecoration(
                     counterText: '',
-                    hintText: '······',
-                    hintStyle: const TextStyle(color: TromblColors.textMuted, letterSpacing: 10),
+                    hintText: '········',
+                    hintStyle: const TextStyle(color: TromblColors.textMuted, letterSpacing: 8),
                     filled: true,
                     fillColor: TromblColors.card,
                     border: OutlineInputBorder(
