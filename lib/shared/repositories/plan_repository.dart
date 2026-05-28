@@ -83,8 +83,8 @@ class PlanRepository {
       }
 
       return [
-        ...(owned as List).map((r) => Plan.fromJson(r as Map<String, dynamic>)),
-        ...(joined as List).map((r) => Plan.fromJson(r as Map<String, dynamic>)),
+        ...owned.map((r) => Plan.fromJson(Map<String, dynamic>.from(r as Map))),
+        ...joined.map((r) => Plan.fromJson(Map<String, dynamic>.from(r as Map))),
       ];
     } catch (_) {
       return [];

@@ -6,9 +6,6 @@ import '../../../core/theme/trombl_theme.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/checkin_providers.dart';
 
-// Re-export so screens can use it
-export '../../vibe/providers/session_providers.dart' show streakProvider;
-
 class DaySummaryScreenArgs {
   const DaySummaryScreenArgs({
     required this.vibe,

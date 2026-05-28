@@ -10,7 +10,6 @@ import '../../../shared/models/models.dart';
 import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../plans/providers/plan_providers.dart';
-import '../../vibe/providers/session_providers.dart' show streakProvider;
 
 final _memoryNodesProvider = FutureProvider.autoDispose<List<MemoryNode>>((ref) {
   return ref.watch(sessionRepositoryProvider).recentMemoryNodes(limit: 4);

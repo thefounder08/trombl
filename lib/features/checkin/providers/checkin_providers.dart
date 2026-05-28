@@ -6,7 +6,6 @@ import '../../../core/ai/models/llm_message.dart';
 import '../../../core/ai/system_prompts.dart';
 import '../../../core/providers.dart';
 import '../../../shared/models/models.dart';
-import '../../../shared/repositories/session_repository.dart';
 import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
 

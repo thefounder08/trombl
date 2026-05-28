@@ -4,7 +4,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/trombl_theme.dart';
-import '../../../../shared/models/models.dart';
 import '../../../../shared/result.dart';
 import '../../../vibe/providers/session_providers.dart';
 import '../../data/categories.dart';

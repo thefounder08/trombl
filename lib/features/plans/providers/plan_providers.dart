@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../shared/models/models.dart';
 import '../../../shared/repositories/plan_repository.dart';
-import '../../../shared/repositories/session_repository.dart';
 import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
 
@@ -26,7 +25,6 @@ final planDetailProvider =
   final match = plans.where((p) => p.id == planId).toList();
   if (match.isNotEmpty) return match.first;
   // Not in cache — fetch directly (e.g. after joining)
-  final uid = ref.read(supabaseProvider).auth.currentUser!.id;
   final rows = await ref
       .read(supabaseProvider)
       .from('plans')
