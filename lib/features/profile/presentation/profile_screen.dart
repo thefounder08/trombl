@@ -11,6 +11,10 @@ import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../plans/providers/plan_providers.dart';
 
+final _currentProfileProvider = FutureProvider.autoDispose<Profile?>((ref) {
+  return ref.watch(sessionRepositoryProvider).getProfile();
+});
+
 final _weeklyReadProvider = FutureProvider.autoDispose<String>((ref) async {
   final sessions = await ref.watch(_recentSessionsProvider.future);
   if (sessions.isEmpty) return '';
@@ -57,6 +61,83 @@ final _recentSessionsProvider = FutureProvider.autoDispose<List<Session>>((ref) 
   return ref.watch(sessionRepositoryProvider).recentSessions();
 });
 
+void _showEditName(BuildContext context, WidgetRef ref, Profile? profile) {
+  final ctrl = TextEditingController(text: profile?.displayName ?? '');
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: TromblColors.bg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('what should trom call you?',
+                style: TextStyle(
+                    fontFamily: TromblText.serif,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: TromblColors.text)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              style: const TextStyle(color: TromblColors.text, fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'your name',
+                hintStyle:
+                    const TextStyle(color: TromblColors.textMuted),
+                filled: true,
+                fillColor: TromblColors.card,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: () async {
+                final name = ctrl.text.trim();
+                if (name.isEmpty) return;
+                await ref
+                    .read(sessionRepositoryProvider)
+                    .updateProfile(displayName: name);
+                ref.invalidate(_currentProfileProvider);
+                if (context.mounted) Navigator.of(context).pop();
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                decoration: BoxDecoration(
+                  color: TromblColors.jomo,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Text('save →',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Color(0xFF0B0B0D),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -72,10 +153,29 @@ class ProfileScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                onTap: () => context.go('/menu'),
-                child: const Text('← menu',
-                    style: TextStyle(color: TromblColors.textSub)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => context.go('/menu'),
+                    child: const Text('← menu',
+                        style: TextStyle(color: TromblColors.textSub)),
+                  ),
+                  ref.watch(_currentProfileProvider).maybeWhen(
+                        data: (profile) => GestureDetector(
+                          onTap: () => _showEditName(context, ref, profile),
+                          child: Text(
+                            profile?.displayName ??
+                                (profile?.handle != null
+                                    ? '@${profile!.handle}'
+                                    : 'set name →'),
+                            style: const TextStyle(
+                                color: TromblColors.textMuted, fontSize: 12),
+                          ),
+                        ),
+                        orElse: () => const SizedBox.shrink(),
+                      ),
+                ],
               ),
               const SizedBox(height: 18),
               const Text('TROM\'S READ ON YOU',

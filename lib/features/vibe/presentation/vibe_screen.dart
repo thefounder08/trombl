@@ -23,6 +23,11 @@ class VibeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Auto-redirect when today's session is restored from DB
+    ref.listen(activeSessionProvider, (_, session) {
+      if (session != null && context.mounted) context.go('/menu');
+    });
+
     return Scaffold(
       body: SafeArea(
         child: Padding(

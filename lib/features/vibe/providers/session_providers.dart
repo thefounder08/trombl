@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
+import '../../../shared/result.dart';
 import '../../../shared/models/models.dart';
 import '../../../shared/repositories/session_repository.dart';
 import '../../../shared/result.dart';
@@ -12,7 +13,19 @@ final sessionRepositoryProvider = Provider<SessionRepository>((ref) {
 /// Holds the currently active session (null until a vibe is picked).
 class ActiveSessionNotifier extends Notifier<Session?> {
   @override
-  Session? build() => null;
+  Session? build() {
+    // Restore today's unwrapped session on every cold start / auth change.
+    Future.microtask(_tryRestore);
+    return null;
+  }
+
+  Future<void> _tryRestore() async {
+    final client = ref.read(supabaseProvider);
+    if (client.auth.currentUser == null) return;
+    final existing =
+        await ref.read(sessionRepositoryProvider).todaySession();
+    if (existing != null) state = existing;
+  }
 
   Future<String?> start(String vibe, {String? city}) async {
     final res =

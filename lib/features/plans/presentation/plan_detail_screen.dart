@@ -6,6 +6,8 @@ import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../providers/plan_providers.dart';
+// ignore: unused_import
+import '../../../shared/repositories/session_repository.dart';
 
 class PlanDetailScreen extends ConsumerWidget {
   const PlanDetailScreen({super.key, required this.planId});
@@ -112,17 +114,26 @@ class PlanDetailScreen extends ConsumerWidget {
                                 color: TromblColors.textMuted, fontSize: 13)),
                       ),
                       error: (_, __) => const SizedBox.shrink(),
-                      data: (members) => members.isEmpty
-                          ? const Text(
-                              "no one's rsvp'd yet. share the code.",
-                              style: TextStyle(
-                                  color: TromblColors.textMuted, fontSize: 14),
-                            )
-                          : ListView(
-                              children: members
-                                  .map((m) => _MemberRow(member: m))
-                                  .toList(),
-                            ),
+                      data: (members) {
+                        if (members.isEmpty) {
+                          return const Text(
+                            "no one's rsvp'd yet. share the code.",
+                            style: TextStyle(
+                                color: TromblColors.textMuted, fontSize: 14),
+                          );
+                        }
+                        final profilesAsync =
+                            ref.watch(memberProfilesProvider(planId));
+                        final profiles = profilesAsync.value ?? {};
+                        return ListView(
+                          children: members
+                              .map((m) => _MemberRow(
+                                    member: m,
+                                    profile: profiles[m.userId],
+                                  ))
+                              .toList(),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -243,8 +254,9 @@ class _RsvpChip extends ConsumerWidget {
 }
 
 class _MemberRow extends StatelessWidget {
-  const _MemberRow({required this.member});
+  const _MemberRow({required this.member, this.profile});
   final PlanMember member;
+  final Profile? profile;
 
   @override
   Widget build(BuildContext context) {
@@ -253,6 +265,10 @@ class _MemberRow extends StatelessWidget {
       'out' => ('🙅', TromblColors.textMuted),
       _ => ('🤔', TromblColors.jomo),
     };
+
+    final name = profile?.displayName ??
+        (profile?.handle != null ? '@${profile!.handle}' : null) ??
+        'trombl user';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -265,9 +281,10 @@ class _MemberRow extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              member.userId.substring(0, 8) + '...',
+              name,
               style: const TextStyle(
-                  color: TromblColors.textSub, fontSize: 13),
+                  color: TromblColors.text, fontSize: 14,
+                  fontWeight: FontWeight.w500),
             ),
           ),
           Text('$icon  ${member.status}',

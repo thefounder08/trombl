@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../shared/models/models.dart';
 import '../../../shared/repositories/plan_repository.dart';
+import '../../../shared/repositories/session_repository.dart';
 import '../../../shared/result.dart';
+import '../../vibe/providers/session_providers.dart';
 
 final planRepositoryProvider = Provider<PlanRepository>((ref) {
   return PlanRepository(ref.watch(supabaseProvider));
@@ -44,6 +46,19 @@ final myMembershipProvider =
     FutureProvider.autoDispose.family<PlanMember?, String>(
         (ref, planId) async {
   return ref.watch(planRepositoryProvider).myMembership(planId);
+});
+
+final memberProfilesProvider =
+    FutureProvider.autoDispose.family<Map<String, Profile>, String>(
+        (ref, planId) async {
+  final members = await ref.watch(planMembersProvider(planId).future);
+  final userIds = members.map((m) => m.userId).toList();
+  return ref.read(sessionRepositoryProvider).profilesForUsers(userIds);
+});
+
+final currentProfileProvider =
+    FutureProvider.autoDispose<Profile?>((ref) async {
+  return ref.watch(sessionRepositoryProvider).getProfile();
 });
 
 // ── RSVP notifier ────────────────────────────────────────────────────────────

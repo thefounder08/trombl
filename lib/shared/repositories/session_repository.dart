@@ -77,10 +77,68 @@ class SessionRepository {
     return (rows as List).map((r) => Session.fromJson(r)).toList();
   }
 
+  /// Returns today's unwrapped session if one exists, null otherwise.
+  Future<Session?> todaySession() async {
+    try {
+      final now = DateTime.now();
+      final startOfDay =
+          DateTime(now.year, now.month, now.day).toIso8601String();
+      final rows = await _client
+          .from('sessions')
+          .select()
+          .eq('user_id', _uid)
+          .gte('started_at', startOfDay)
+          .isFilter('wrapped_at', null)
+          .order('started_at', ascending: false)
+          .limit(1);
+      if ((rows as List).isEmpty) return null;
+      return Session.fromJson(rows.first);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<List<Pick>> picksForSessions(List<String> sessionIds) async {
     if (sessionIds.isEmpty) return [];
     final rows =
         await _client.from('picks').select().inFilter('session_id', sessionIds);
     return (rows as List).map((r) => Pick.fromJson(r)).toList();
+  }
+
+  Future<Profile?> getProfile() async {
+    try {
+      final row = await _client
+          .from('profiles')
+          .select()
+          .eq('id', _uid)
+          .single();
+      return Profile.fromJson(row);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> updateProfile({String? displayName, String? handle}) async {
+    final data = <String, dynamic>{};
+    if (displayName != null) data['display_name'] = displayName;
+    if (handle != null) data['handle'] = handle;
+    if (data.isEmpty) return;
+    await _client.from('profiles').upsert({'id': _uid, ...data});
+  }
+
+  Future<Map<String, Profile>> profilesForUsers(List<String> userIds) async {
+    if (userIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('profiles')
+          .select()
+          .inFilter('id', userIds);
+      return {
+        for (final r in (rows as List))
+          (r['id'] as String): Profile.fromJson(r as Map<String, dynamic>)
+      };
+    } catch (_) {
+      return {};
+    }
   }
 }
