@@ -1,0 +1,28 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Generated (Freezed / json_serializable)
+*.freezed.dart
+*.g.dart
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Secrets — never commit keys
+*.env
+.env*
+**/secrets.dart
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# OS
+.DS_Store
