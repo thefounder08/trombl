@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/trombl_theme.dart';
@@ -144,6 +146,30 @@ class _CreatePlanSheetState extends ConsumerState<CreatePlanSheet> {
             ),
           ] else ...[
             _ShareSection(plan: _created!, vibe: widget.vibe),
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/plan/${_created!.id}');
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: TromblColors.card,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Text(
+                  'view plan →',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: TromblColors.textSub,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
           ],
         ],
       ),
@@ -160,7 +186,7 @@ class _ShareSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final token = plan.shareToken;
     final shareText =
-        "i'm planning: ${plan.title}. you in? trombl code: $token";
+        "i'm planning: ${plan.title}. you in?\ntrombl code: $token\nhttps://trombl.com/p/$token";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,8 +196,10 @@ class _ShareSection extends StatelessWidget {
           style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
         ),
         const SizedBox(height: 12),
+        // Code + copy
         GestureDetector(
           onTap: () {
+            HapticFeedback.lightImpact();
             Clipboard.setData(ClipboardData(text: token));
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('code copied 👌')),
@@ -198,39 +226,78 @@ class _ShareSection extends StatelessWidget {
                     fontFamily: TromblText.sans,
                   ),
                 ),
-                const Text('copy',
+                const Text('tap to copy',
                     style: TextStyle(
-                        color: TromblColors.textMuted, fontSize: 12)),
+                        color: TromblColors.textMuted, fontSize: 11)),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        GestureDetector(
-          onTap: () => launchUrl(
-            Uri.parse(
-                'whatsapp://send?text=${Uri.encodeComponent(shareText)}'),
-            mode: LaunchMode.externalApplication,
-          ).catchError((_) => false),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF25D366).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: const Color(0xFF25D366).withValues(alpha: 0.3)),
-            ),
-            child: const Text(
-              'share on whatsapp 💬',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFF25D366),
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            // Native share
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  Share.share(shareText, subject: "join my trombl plan");
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Text(
+                    'share 🔗',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: TromblColors.textSub,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 10),
+            // WhatsApp
+            Expanded(
+              child: GestureDetector(
+                onTap: () => launchUrl(
+                  Uri.parse(
+                      'whatsapp://send?text=${Uri.encodeComponent(shareText)}'),
+                  mode: LaunchMode.externalApplication,
+                ).catchError((_) async {
+                  // fallback to web WhatsApp
+                  await launchUrl(
+                    Uri.parse(
+                        'https://api.whatsapp.com/send?text=${Uri.encodeComponent(shareText)}'),
+                    mode: LaunchMode.externalApplication,
+                  );
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF25D366).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: const Color(0xFF25D366).withValues(alpha: 0.3)),
+                  ),
+                  child: const Text(
+                    'whatsapp 💬',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF25D366),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
