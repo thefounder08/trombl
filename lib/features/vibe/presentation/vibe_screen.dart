@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -10,6 +11,7 @@ class VibeScreen extends ConsumerWidget {
   const VibeScreen({super.key});
 
   Future<void> _pick(BuildContext context, WidgetRef ref, String vibe) async {
+    HapticFeedback.heavyImpact();
     final err = await ref.read(activeSessionProvider.notifier).start(vibe);
     if (err != null) {
       if (context.mounted) {

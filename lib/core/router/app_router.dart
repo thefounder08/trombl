@@ -15,6 +15,31 @@ import '../../features/plans/presentation/plan_detail_screen.dart';
 import '../../features/plans/presentation/join_plan_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 
+/// Shared transition: fade + 16px upward float.
+Page<T> _page<T>(LocalKey key, Widget child) => CustomTransitionPage<T>(
+      key: key,
+      child: child,
+      transitionDuration: const Duration(milliseconds: 280),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      transitionsBuilder: (_, animation, __, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween(
+              begin: const Offset(0, 0.04),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+
 /// Auth-aware routing. Signed-out users land on /login; signed-in users
 /// start at /vibe (the first real moment — pick a vibe).
 final routerProvider = Provider<GoRouter>((ref) {
@@ -29,29 +54,53 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     refreshListenable: _AuthRefresh(ref),
     routes: [
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/setup', builder: (_, __) => const SetupScreen()),
-      GoRoute(path: '/vibe', builder: (_, __) => const VibeScreen()),
-      GoRoute(path: '/menu', builder: (_, __) => const MenuScreen()),
-      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+      GoRoute(
+        path: '/login',
+        pageBuilder: (_, s) => _page(s.pageKey, const LoginScreen()),
+      ),
+      GoRoute(
+        path: '/setup',
+        pageBuilder: (_, s) => _page(s.pageKey, const SetupScreen()),
+      ),
+      GoRoute(
+        path: '/vibe',
+        pageBuilder: (_, s) => _page(s.pageKey, const VibeScreen()),
+      ),
+      GoRoute(
+        path: '/menu',
+        pageBuilder: (_, s) => _page(s.pageKey, const MenuScreen()),
+      ),
+      GoRoute(
+        path: '/profile',
+        pageBuilder: (_, s) => _page(s.pageKey, const ProfileScreen()),
+      ),
       GoRoute(
         path: '/response',
-        builder: (_, state) =>
-            ResponseScreen(args: state.extra! as ResponseArgs),
+        pageBuilder: (_, s) =>
+            _page(s.pageKey, ResponseScreen(args: s.extra! as ResponseArgs)),
       ),
-      GoRoute(path: '/checkin', builder: (_, __) => const CheckinScreen()),
+      GoRoute(
+        path: '/checkin',
+        pageBuilder: (_, s) => _page(s.pageKey, const CheckinScreen()),
+      ),
       GoRoute(
         path: '/summary',
-        builder: (_, state) =>
-            DaySummaryScreen(args: state.extra! as DaySummaryScreenArgs),
+        pageBuilder: (_, s) => _page(
+            s.pageKey, DaySummaryScreen(args: s.extra! as DaySummaryScreenArgs)),
       ),
       GoRoute(
         path: '/plan/:id',
-        builder: (_, state) =>
-            PlanDetailScreen(planId: state.pathParameters['id']!),
+        pageBuilder: (_, s) => _page(
+            s.pageKey, PlanDetailScreen(planId: s.pathParameters['id']!)),
       ),
-      GoRoute(path: '/join-plan', builder: (_, __) => const JoinPlanScreen()),
-      GoRoute(path: '/history', builder: (_, __) => const HistoryScreen()),
+      GoRoute(
+        path: '/join-plan',
+        pageBuilder: (_, s) => _page(s.pageKey, const JoinPlanScreen()),
+      ),
+      GoRoute(
+        path: '/history',
+        pageBuilder: (_, s) => _page(s.pageKey, const HistoryScreen()),
+      ),
     ],
   );
 });

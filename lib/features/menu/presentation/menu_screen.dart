@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -110,12 +111,15 @@ class _CategoryCard extends StatelessWidget {
     final accent = TromblColors.accentFor(vibe);
 
     return GestureDetector(
-      onTap: () => showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (_) => OptionsSheet(category: category, vibe: vibe),
-      ),
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => OptionsSheet(category: category, vibe: vibe),
+        );
+      },
       child: Container(
         decoration: BoxDecoration(
           color: TromblColors.card,
