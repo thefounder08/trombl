@@ -50,42 +50,54 @@ class ResponseScreen extends ConsumerWidget {
                   style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
                 ),
               ),
-              const Spacer(),
-              Text(
-                args.optionLabel,
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-              reaction.when(
-                loading: () => const _TypingIndicator(),
-                error: (_, __) => const Text(
-                  "trom went quiet. but u already picked, so go.",
-                  style: TextStyle(
-                    fontFamily: TromblText.serif,
-                    fontSize: 26,
-                    color: TromblColors.text,
-                    height: 1.25,
+              // Scrollable middle — reaction text can be long
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          args.optionLabel,
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        reaction.when(
+                          loading: () => const _TypingIndicator(),
+                          error: (_, __) => const Text(
+                            "trom went quiet. but u already picked, so go.",
+                            style: TextStyle(
+                              fontFamily: TromblText.serif,
+                              fontSize: 26,
+                              color: TromblColors.text,
+                              height: 1.25,
+                            ),
+                          ),
+                          data: (text) => Text(
+                            text,
+                            style: const TextStyle(
+                              fontFamily: TromblText.serif,
+                              fontSize: 26,
+                              color: TromblColors.text,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                data: (text) => Text(
-                  text,
-                  style: const TextStyle(
-                    fontFamily: TromblText.serif,
-                    fontSize: 26,
-                    color: TromblColors.text,
-                    height: 1.25,
-                  ),
-                ),
               ),
-              const Spacer(),
+              // Pinned bottom buttons — always visible
               if (args.action != ActionType.none) ...[
                 _ActionButton(action: args.action, actionData: args.actionData),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
               ],
               GestureDetector(
                 onTap: () => showModalBottomSheet(
@@ -121,7 +133,7 @@ class ResponseScreen extends ConsumerWidget {
                 onTap: () => context.go('/menu'),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: TromblColors.card,
                     borderRadius: BorderRadius.circular(14),
@@ -132,7 +144,7 @@ class ResponseScreen extends ConsumerWidget {
                     style: TextStyle(
                       color: TromblColors.textSub,
                       fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                      fontSize: 14,
                     ),
                   ),
                 ),
