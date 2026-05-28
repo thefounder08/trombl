@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../../menu/data/categories.dart';
+import '../../plans/presentation/create_plan_sheet.dart';
 import '../providers/reaction_provider.dart';
 
 class ResponseArgs {
@@ -86,6 +87,36 @@ class ResponseScreen extends ConsumerWidget {
                 _ActionButton(action: args.action, actionData: args.actionData),
                 const SizedBox(height: 12),
               ],
+              GestureDetector(
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (_) => CreatePlanSheet(
+                    vibe: args.vibe,
+                    initialTitle: args.optionLabel,
+                  ),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: accent.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    'make it a plan 🤙',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               GestureDetector(
                 onTap: () => context.go('/menu'),
                 child: Container(

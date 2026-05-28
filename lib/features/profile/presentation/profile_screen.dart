@@ -1,13 +1,59 @@
 import 'package:flutter/material.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/ai/models/llm_message.dart';
+import '../../../core/ai/system_prompts.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
+import '../../../shared/models/models.dart';
+import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
+import '../../plans/providers/plan_providers.dart';
 
-/// "trom's read on you" — backed by real session history.
-final recentSessionsProvider = FutureProvider.autoDispose((ref) async {
+final _weeklyReadProvider = FutureProvider.autoDispose<String>((ref) async {
+  final sessions = await ref.watch(_recentSessionsProvider.future);
+  if (sessions.isEmpty) return '';
+
+  final picks = await ref
+      .read(sessionRepositoryProvider)
+      .picksForSessions(sessions.map((s) => s.id).toList());
+
+  final fomo = sessions.where((s) => s.vibe == 'fomo').length;
+  final jomo = sessions.length - fomo;
+
+  final tagCounts = <String, int>{};
+  for (final p in picks) {
+    tagCounts[p.tag] = (tagCounts[p.tag] ?? 0) + 1;
+  }
+  final topTags = (tagCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value)))
+      .take(3)
+      .map((e) => e.key.replaceAll('-', ' '))
+      .join(', ');
+
+  final doneRate = picks.isEmpty
+      ? 0
+      : (picks.where((p) => p.done).length * 100 ~/ picks.length);
+
+  final stats =
+      '${sessions.length} sessions: $fomo fomo, $jomo jomo. '
+      'most into: ${topTags.isEmpty ? "nothing yet" : topTags}. '
+      'did ${doneRate}% of things picked.';
+
+  final Result<String> result = await ref.read(llmProvider).generate(
+        LlmRequest(
+          system: SystemPrompts.weeklyRead(stats),
+          prompt: stats,
+        ),
+      );
+  return switch (result) {
+    Success(:final data) => data,
+    Failure(:final error) => error,
+  };
+});
+
+final _recentSessionsProvider = FutureProvider.autoDispose<List<Session>>((ref) async {
   return ref.watch(sessionRepositoryProvider).recentSessions();
 });
 
@@ -16,7 +62,8 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(recentSessionsProvider);
+    final weeklyRead = ref.watch(_weeklyReadProvider);
+    final myPlans = ref.watch(myPlansProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -37,49 +84,74 @@ class ProfileScreen extends ConsumerWidget {
                       fontSize: 10,
                       letterSpacing: 2,
                       fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Expanded(
-                child: async.when(
-                  loading: () => const Center(
-                      child: CircularProgressIndicator(color: TromblColors.jomo)),
-                  error: (_, __) => const Text("couldn't load ur read. try again?",
-                      style: TextStyle(color: TromblColors.textSub)),
-                  data: (sessions) {
-                    if (sessions.isEmpty) {
-                      return const Text(
+              const SizedBox(height: 12),
+              weeklyRead.when(
+                loading: () => const _TromTyping(),
+                error: (_, __) => const Text(
+                  "trom's still figuring u out.\npick a few things and patterns show up here.",
+                  style: TextStyle(
+                      fontFamily: TromblText.serif,
+                      fontSize: 22,
+                      color: TromblColors.text,
+                      height: 1.25),
+                ),
+                data: (text) => text.isEmpty
+                    ? const Text(
                         "trom's still figuring u out.\npick a few things and patterns show up here.",
                         style: TextStyle(
                             fontFamily: TromblText.serif,
-                            fontSize: 24,
+                            fontSize: 22,
                             color: TromblColors.text,
                             height: 1.25),
-                      );
-                    }
-                    final jomo = sessions.where((s) => s.vibe == 'jomo').length;
-                    final fomo = sessions.length - jomo;
-                    final headline = jomo > fomo
-                        ? 'you run hot, then you ghost.'
-                        : fomo > jomo
-                            ? "you don't sit still, do you."
-                            : "trom can't pin you down.";
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(headline,
-                            style: const TextStyle(
-                                fontFamily: TromblText.serif,
-                                fontSize: 25,
-                                fontWeight: FontWeight.w700,
-                                color: TromblColors.text,
-                                height: 1.22)),
-                        const SizedBox(height: 16),
-                        Text('last ${sessions.length} days · $fomo fomo, $jomo jomo',
-                            style: const TextStyle(color: TromblColors.textSub)),
-                      ],
-                    );
-                  },
-                ),
+                      )
+                    : Text(
+                        text,
+                        style: const TextStyle(
+                            fontFamily: TromblText.serif,
+                            fontSize: 22,
+                            color: TromblColors.text,
+                            height: 1.25),
+                      ),
               ),
+              const SizedBox(height: 32),
+              // Plans section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('MY PLANS',
+                      style: TextStyle(
+                          color: TromblColors.textMuted,
+                          fontSize: 10,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w700)),
+                  GestureDetector(
+                    onTap: () => context.push('/join-plan'),
+                    child: const Text('join a plan →',
+                        style: TextStyle(
+                            color: TromblColors.textMuted, fontSize: 12)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              myPlans.when(
+                loading: () => const Text('loading...',
+                    style: TextStyle(
+                        color: TromblColors.textMuted, fontSize: 13)),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (plans) => plans.isEmpty
+                    ? const Text(
+                        'no plans yet. make one from the response screen.',
+                        style: TextStyle(
+                            color: TromblColors.textMuted, fontSize: 13),
+                      )
+                    : Column(
+                        children: plans
+                            .take(5)
+                            .map((p) => _PlanRow(plan: p))
+                            .toList(),
+                      ),
+              ),
+              const Spacer(),
               GestureDetector(
                 onTap: () async {
                   await ref.read(supabaseProvider).auth.signOut();
@@ -93,6 +165,94 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanRow extends StatelessWidget {
+  const _PlanRow({required this.plan});
+  final Plan plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = TromblColors.accentFor(plan.vibe);
+    return GestureDetector(
+      onTap: () => context.push('/plan/${plan.id}'),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: TromblColors.card,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Text(plan.vibe == 'fomo' ? '⚡' : '🛌',
+                style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                plan.title,
+                style: const TextStyle(
+                    color: TromblColors.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text('→',
+                style: TextStyle(color: accent, fontSize: 14)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TromTyping extends StatefulWidget {
+  const _TromTyping();
+
+  @override
+  State<_TromTyping> createState() => _TromTypingState();
+}
+
+class _TromTypingState extends State<_TromTyping>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+    _anim = Tween(begin: 0.3, end: 1.0).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Opacity(
+        opacity: _anim.value,
+        child: const Text(
+          'trom is reading ur patterns...',
+          style: TextStyle(
+            fontFamily: TromblText.serif,
+            fontSize: 22,
+            color: TromblColors.textMuted,
+            height: 1.25,
           ),
         ),
       ),

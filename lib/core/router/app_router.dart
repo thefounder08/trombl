@@ -10,6 +10,8 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/response/presentation/response_screen.dart';
 import '../../features/checkin/presentation/checkin_screen.dart';
 import '../../features/checkin/presentation/day_summary_screen.dart';
+import '../../features/plans/presentation/plan_detail_screen.dart';
+import '../../features/plans/presentation/join_plan_screen.dart';
 
 /// Auth-aware routing. Signed-out users land on /login; signed-in users
 /// start at /vibe (the first real moment — pick a vibe).
@@ -40,6 +42,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) =>
             DaySummaryScreen(args: state.extra! as DaySummaryScreenArgs),
       ),
+      GoRoute(
+        path: '/plan/:id',
+        builder: (_, state) =>
+            PlanDetailScreen(planId: state.pathParameters['id']!),
+      ),
+      GoRoute(path: '/join-plan', builder: (_, __) => const JoinPlanScreen()),
     ],
   );
 });

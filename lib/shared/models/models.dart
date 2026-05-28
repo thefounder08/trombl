@@ -60,7 +60,23 @@ class Plan with _$Plan {
     required String title,
     String? detail,
     @JsonKey(name: 'share_token') required String shareToken,
+    @JsonKey(name: 'created_at') DateTime? createdAt,
   }) = _Plan;
 
   factory Plan.fromJson(Map<String, dynamic> json) => _$PlanFromJson(json);
+}
+
+/// Mirrors public.plan_members
+@freezed
+class PlanMember with _$PlanMember {
+  const factory PlanMember({
+    required String id,
+    @JsonKey(name: 'plan_id') required String planId,
+    @JsonKey(name: 'user_id') required String userId,
+    required String status, // 'in' | 'out' | 'maybe'
+    @JsonKey(name: 'created_at') DateTime? createdAt,
+  }) = _PlanMember;
+
+  factory PlanMember.fromJson(Map<String, dynamic> json) =>
+      _$PlanMemberFromJson(json);
 }
