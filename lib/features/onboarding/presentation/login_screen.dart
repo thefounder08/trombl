@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
+import '../../vibe/providers/session_providers.dart';
 
 class LoginScreen extends HookConsumerWidget {
   const LoginScreen({super.key});
@@ -60,7 +62,13 @@ class LoginScreen extends HookConsumerWidget {
               token: code,
               type: OtpType.email,
             );
-        // router will redirect automatically via authStateProvider
+        // Check if this is a new user (no display name) → /setup, else router handles it
+        if (context.mounted) {
+          final profile = await ref.read(sessionRepositoryProvider).getProfile();
+          if (context.mounted && (profile?.displayName == null)) {
+            context.go('/setup');
+          }
+        }
       } catch (e) {
         debugPrint('verifyOtp error: $e');
         final msg = e is AuthException ? e.message : e.toString();

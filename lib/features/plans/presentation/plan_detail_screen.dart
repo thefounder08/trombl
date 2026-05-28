@@ -6,8 +6,6 @@ import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../providers/plan_providers.dart';
-// ignore: unused_import
-import '../../../shared/repositories/session_repository.dart';
 
 class PlanDetailScreen extends ConsumerWidget {
   const PlanDetailScreen({super.key, required this.planId});
@@ -82,7 +80,7 @@ class PlanDetailScreen extends ConsumerWidget {
                             color: TromblColors.textSub, fontSize: 14)),
                   ],
                   const SizedBox(height: 28),
-                  // RSVP row (only for non-owners who have joined)
+                  // RSVP row — only for non-owners
                   if (!isOwner) ...[
                     myMemberAsync.when(
                       loading: () => const SizedBox.shrink(),

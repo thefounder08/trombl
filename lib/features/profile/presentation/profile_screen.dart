@@ -11,6 +11,11 @@ import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../plans/providers/plan_providers.dart';
 
+final _recentWrappedProvider = FutureProvider.autoDispose<List<Session>>((ref) async {
+  final all = await ref.watch(_recentSessionsProvider.future);
+  return all.where((s) => s.wrappedAt != null).take(3).toList();
+});
+
 final _currentProfileProvider = FutureProvider.autoDispose<Profile?>((ref) {
   return ref.watch(sessionRepositoryProvider).getProfile();
 });
@@ -218,6 +223,26 @@ class ProfileScreen extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  const Text('PAST DAYS',
+                      style: TextStyle(
+                          color: TromblColors.textMuted,
+                          fontSize: 10,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w700)),
+                  GestureDetector(
+                    onTap: () => context.push('/history'),
+                    child: const Text('see all →',
+                        style: TextStyle(
+                            color: TromblColors.textMuted, fontSize: 12)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _RecentDaysSummary(),
+              const SizedBox(height: 28),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
                   const Text('MY PLANS',
                       style: TextStyle(
                           color: TromblColors.textMuted,
@@ -310,6 +335,56 @@ class _PlanRow extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _RecentDaysSummary extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(_recentWrappedProvider).when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (sessions) {
+        if (sessions.isEmpty) {
+          return const Text(
+            'wrap ur first day to see it here.',
+            style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
+          );
+        }
+        return Row(
+          children: sessions.map((s) {
+            final accent = TromblColors.accentFor(s.vibe);
+            final d = s.startedAt;
+            final label = d != null ? _dayLabel(d) : '?';
+            return Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: TromblColors.card,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: accent.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  '${s.vibe == 'fomo' ? '⚡' : '🛌'} $label',
+                  style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  String _dayLabel(DateTime d) {
+    final now = DateTime.now();
+    final diff = DateTime(now.year, now.month, now.day)
+        .difference(DateTime(d.year, d.month, d.day))
+        .inDays;
+    if (diff == 0) return 'today';
+    if (diff == 1) return 'yesterday';
+    return '$diff days ago';
   }
 }
 
