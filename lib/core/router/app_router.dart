@@ -8,6 +8,8 @@ import '../../features/vibe/presentation/vibe_screen.dart';
 import '../../features/menu/presentation/menu_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/response/presentation/response_screen.dart';
+import '../../features/checkin/presentation/checkin_screen.dart';
+import '../../features/checkin/presentation/day_summary_screen.dart';
 
 /// Auth-aware routing. Signed-out users land on /login; signed-in users
 /// start at /vibe (the first real moment — pick a vibe).
@@ -31,6 +33,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/response',
         builder: (_, state) =>
             ResponseScreen(args: state.extra! as ResponseArgs),
+      ),
+      GoRoute(path: '/checkin', builder: (_, __) => const CheckinScreen()),
+      GoRoute(
+        path: '/summary',
+        builder: (_, state) =>
+            DaySummaryScreen(args: state.extra! as DaySummaryScreenArgs),
       ),
     ],
   );

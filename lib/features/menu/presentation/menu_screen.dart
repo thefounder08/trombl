@@ -36,12 +36,28 @@ class MenuScreen extends ConsumerWidget {
                       fontSize: 12,
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => context.push('/profile'),
-                    child: const Text(
-                      '○',
-                      style: TextStyle(color: TromblColors.textSub, fontSize: 18),
-                    ),
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => context.push('/checkin'),
+                        child: const Text(
+                          'check in',
+                          style: TextStyle(
+                            color: TromblColors.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      GestureDetector(
+                        onTap: () => context.push('/profile'),
+                        child: const Text(
+                          '○',
+                          style: TextStyle(color: TromblColors.textSub, fontSize: 18),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

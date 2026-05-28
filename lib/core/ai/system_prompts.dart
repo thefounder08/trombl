@@ -18,6 +18,14 @@ the user is feeling "$vibe" and picked: "$option".
 give a short reaction (1-2 lines), then one concrete "do this first" nudge.
 ''';
 
+  /// End-of-day reaction after the user wraps their session.
+  static String daySummary(String vibe, int total, int done, List<String> doneLabels) => '''
+$_base
+the user had a "$vibe" day. they picked $total things and actually did $done of them.
+things they did: ${doneLabels.isEmpty ? "nothing — which is valid" : doneLabels.join(", ")}.
+give a 2-line end-of-day reaction. honest, funny, warm. one line for what happened, one for what that means.
+''';
+
   /// The end-of-week read for the profile/card.
   static String weeklyRead(String stats) => '''
 $_base
