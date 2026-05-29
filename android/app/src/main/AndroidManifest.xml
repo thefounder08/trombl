@@ -38,12 +38,12 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="trombl.com" android:pathPrefix="/p/"/>
             </intent-filter>
-            <!-- Custom scheme fallback: trombl://p/{token} -->
+            <!-- io.trombl:// custom scheme for magic-link login callback -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="trombl" android:host="p"/>
+                <data android:scheme="io.trombl"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
