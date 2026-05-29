@@ -36,10 +36,23 @@ flutter:
     - assets/icon/
 
   fonts:
+    # DM Sans — variable font, declare each weight used so Flutter maps
+    # FontWeight.wXXX → the correct axis position in the variable font.
     - family: DMSans
       fonts:
         - asset: assets/fonts/DMSans.ttf
+          weight: 400
+        - asset: assets/fonts/DMSans.ttf
+          weight: 500
+        - asset: assets/fonts/DMSans.ttf
+          weight: 600
+        - asset: assets/fonts/DMSans.ttf
+          weight: 700
+        - asset: assets/fonts/DMSans.ttf
+          weight: 800
 
+    # Fraunces — variable serif, used for headlines at 700 only.
     - family: Fraunces
       fonts:
         - asset: assets/fonts/Fraunces.ttf
+          weight: 700

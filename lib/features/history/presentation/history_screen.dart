@@ -205,11 +205,11 @@ class _DayCard extends StatelessWidget {
             const Divider(height: 1, color: TromblColors.border),
             ...picks.map((p) => _PickLine(pick: p, accent: accent)),
           ] else
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: Text(
                 'no picks this day.',
-                style: const TextStyle(
+                style: TextStyle(
                     color: TromblColors.textMuted, fontSize: 13),
               ),
             ),

@@ -86,12 +86,12 @@ class _ConfigErrorApp extends StatelessWidget {
   const _ConfigErrorApp();
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       home: Scaffold(
         backgroundColor: TromblColors.bg,
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(32),
+            padding: EdgeInsets.all(32),
             child: Text(
               "missing config.\nrun with --dart-define=SUPABASE_URL=... and SUPABASE_ANON_KEY=...",
               textAlign: TextAlign.center,

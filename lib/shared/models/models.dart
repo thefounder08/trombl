@@ -1,3 +1,6 @@
+// ignore_for_file: invalid_annotation_target
+// ↑ @JsonKey on Freezed factory params triggers this in newer json_annotation
+//   versions; it's a known false-positive — the code generates correctly.
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'models.freezed.dart';

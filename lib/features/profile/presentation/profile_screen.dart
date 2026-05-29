@@ -52,7 +52,7 @@ final _weeklyReadProvider = FutureProvider.autoDispose<String>((ref) async {
   final stats =
       '${sessions.length} sessions: $fomo fomo, $jomo jomo. '
       'most into: ${topTags.isEmpty ? "nothing yet" : topTags}. '
-      'did ${doneRate}% of things picked.';
+      'did $doneRate% of things picked.';
 
   final Result<String> result = await ref.read(llmProvider).generate(
         LlmRequest(
