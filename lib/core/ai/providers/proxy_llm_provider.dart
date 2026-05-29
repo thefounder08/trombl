@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../app_config.dart';
@@ -23,9 +24,16 @@ class ProxyLlmProvider implements LlmProvider {
         body: {'system': request.system, 'prompt': request.prompt},
       );
       final data = res.data;
+      debugPrint('[LLM] raw response: $data');
       if (data is Map && data['text'] is String) {
-        return Success(_stripMarkdown(data['text'] as String));
+        final text = _stripMarkdown(data['text'] as String);
+        debugPrint('[LLM] text: "$text"');
+        if (text.isEmpty || _isCopOut(text)) {
+          return const Failure("trom went quiet. try again?");
+        }
+        return Success(text);
       }
+      debugPrint('[LLM] unexpected shape: ${data.runtimeType}');
       return const Failure("trom went quiet. try again?");
     } catch (_) {
       return const Failure("that didn't go through. try again?");
@@ -37,4 +45,12 @@ class ProxyLlmProvider implements LlmProvider {
       .replaceAll(RegExp(r'[*_`#>]'), '')
       .replaceAll(RegExp(r'\n{3,}'), '\n\n')
       .trim();
+
+  /// Detects when the model generates a meta cop-out instead of a real reaction.
+  bool _isCopOut(String s) {
+    final lower = s.toLowerCase();
+    return lower.contains('went quiet') ||
+        lower.contains('trom is quiet') ||
+        lower.contains('no words') && lower.length < 40;
+  }
 }

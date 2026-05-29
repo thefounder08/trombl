@@ -16,53 +16,114 @@ class OptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final accent = TromblColors.accentFor(vibe);
+    final accent = category.isNewDrop
+        ? TromblColors.newDrop
+        : TromblColors.accentFor(vibe);
 
     return Container(
       decoration: const BoxDecoration(
-        color: TromblColors.bg,
+        color: TromblColors.cardLit,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      padding: EdgeInsets.fromLTRB(22, 14, 22,
+          MediaQuery.of(context).padding.bottom + 28),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Handle bar
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 36, height: 4,
               decoration: BoxDecoration(
-                color: TromblColors.textMuted.withOpacity(0.3),
+                color: TromblColors.borderMid,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
           const SizedBox(height: 20),
+
+          // Category header
           Row(
             children: [
-              Text(category.emoji, style: const TextStyle(fontSize: 26)),
+              Text(category.emoji, style: const TextStyle(fontSize: 24)),
               const SizedBox(width: 10),
-              Text(
-                category.label,
-                style: TextStyle(
-                  fontFamily: TromblText.serif,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: accent,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      category.title,
+                      style: TextStyle(
+                        fontFamily: TromblText.serif,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: accent,
+                        height: 1.15,
+                      ),
+                    ),
+                    Text(
+                      category.sub,
+                      style: const TextStyle(
+                        color: TromblColors.textSub,
+                        fontSize: 12,
+                        fontFamily: TromblText.sans,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              if (category.isNewDrop)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: TromblColors.newGlow,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: TromblColors.newDrop.withValues(alpha: 0.35)),
+                  ),
+                  child: const Text(
+                    'new',
+                    style: TextStyle(
+                      color: TromblColors.newDrop,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      fontFamily: TromblText.sans,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 6),
           const Text(
             'pick one.',
-            style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
+            style: TextStyle(
+              color: TromblColors.textMuted,
+              fontSize: 12,
+              fontFamily: TromblText.sans,
+            ),
           ),
           const SizedBox(height: 16),
+
+          // Options list
           ...category.options.map((opt) => _OptionRow(
             option: opt,
             vibe: vibe,
-            onTap: () => _onPick(context, ref, opt),
+            accent: accent,
+            onTap: opt.isComingSoon
+                ? () {
+                    HapticFeedback.selectionClick();
+                    // Gentle toast for coming soon
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('dropping soon 👀'),
+                        duration: Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                : () => _onPick(context, ref, opt),
           )),
         ],
       ),
@@ -96,56 +157,121 @@ class OptionsSheet extends ConsumerWidget {
           actionData: opt.actionData,
         ));
       case Failure(:final error):
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
     }
   }
 }
 
+// ─── Option row ───────────────────────────────────────────────────────────────
+
 class _OptionRow extends StatelessWidget {
-  const _OptionRow({required this.option, required this.vibe, required this.onTap});
+  const _OptionRow({
+    required this.option,
+    required this.vibe,
+    required this.accent,
+    required this.onTap,
+  });
   final MenuOption option;
   final String vibe;
+  final Color accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isDisabled = option.isComingSoon;
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: TromblColors.card,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                option.label,
-                style: const TextStyle(
-                  color: TromblColors.text,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 150),
+        opacity: isDisabled ? 0.38 : 1.0,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: TromblColors.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDisabled
+                  ? Colors.transparent
+                  : accent.withValues(alpha: 0.14),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  option.label,
+                  style: TextStyle(
+                    color: isDisabled ? TromblColors.textSub : TromblColors.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: TromblText.sans,
+                    height: 1.3,
+                  ),
                 ),
               ),
-            ),
-            if (option.action != ActionType.none)
-              Text(
-                _actionIcon(option.action),
-                style: const TextStyle(fontSize: 14),
-              ),
-          ],
+              const SizedBox(width: 10),
+              _TagChip(action: option.action, tag: option.tag, accent: accent),
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  String _actionIcon(ActionType action) => switch (action) {
-    ActionType.zomato => '🍴',
-    ActionType.bookmyshow => '🎟',
-    ActionType.whatsapp => '💬',
-    ActionType.dnd => '📵',
-    ActionType.none => '',
-  };
+// ─── Tag chip ─────────────────────────────────────────────────────────────────
+
+class _TagChip extends StatelessWidget {
+  const _TagChip({required this.action, required this.tag, required this.accent});
+  final ActionType action;
+  final String tag;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    if (action == ActionType.comingSoon) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: TromblColors.border,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Text(
+          'soon',
+          style: TextStyle(
+            color: TromblColors.textMuted,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+            fontFamily: TromblText.sans,
+          ),
+        ),
+      );
+    }
+
+    if (action == ActionType.none) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        '⚡ $tag',
+        style: TextStyle(
+          color: accent,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.3,
+          fontFamily: TromblText.sans,
+        ),
+      ),
+    );
+  }
 }

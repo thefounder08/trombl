@@ -13,17 +13,25 @@ final sessionRepositoryProvider = Provider<SessionRepository>((ref) {
 class ActiveSessionNotifier extends Notifier<Session?> {
   @override
   Session? build() {
+    // Reset so the vibe screen blanks correctly on each auth change.
+    ref.read(_sessionRestoredProvider.notifier).state = false;
     // Restore today's unwrapped session on every cold start / auth change.
     Future.microtask(_tryRestore);
     return null;
   }
 
   Future<void> _tryRestore() async {
-    final client = ref.read(supabaseProvider);
-    if (client.auth.currentUser == null) return;
-    final existing =
-        await ref.read(sessionRepositoryProvider).todaySession();
-    if (existing != null) state = existing;
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client.auth.currentUser == null) return;
+      final existing =
+          await ref.read(sessionRepositoryProvider).todaySession();
+      if (existing != null) state = existing;
+    } finally {
+      // Always mark restored — even if the DB call throws — so the vibe
+      // screen never gets stuck on a blank screen.
+      ref.read(_sessionRestoredProvider.notifier).state = true;
+    }
   }
 
   Future<String?> start(String vibe, {String? city}) async {
@@ -52,6 +60,14 @@ class ActiveSessionNotifier extends Notifier<Session?> {
 
 final activeSessionProvider =
     NotifierProvider<ActiveSessionNotifier, Session?>(ActiveSessionNotifier.new);
+
+/// True once the initial DB restore attempt has finished (whether or not a
+/// session was found). Used by VibeScreen to avoid a flash of the picker
+/// before we know if the user already has a session today.
+final _sessionRestoredProvider = StateProvider<bool>((_) => false);
+final sessionRestoredProvider = Provider<bool>(
+  (ref) => ref.watch(_sessionRestoredProvider),
+);
 
 /// Consecutive days with a wrapped session (streak counter).
 final streakProvider = FutureProvider.autoDispose<int>((ref) async {

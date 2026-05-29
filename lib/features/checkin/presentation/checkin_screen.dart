@@ -123,11 +123,11 @@ class _PickRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: pick.done
-              ? accent.withOpacity(0.08)
+              ? accent.withValues(alpha:0.08)
               : TromblColors.card,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: pick.done ? accent.withOpacity(0.3) : Colors.transparent,
+            color: pick.done ? accent.withValues(alpha:0.3) : Colors.transparent,
           ),
         ),
         child: Row(
@@ -202,8 +202,8 @@ class _WrapButton extends ConsumerWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: vibe == 'fomo'
-                ? [TromblColors.fomo, TromblColors.fomo.withOpacity(0.7)]
-                : [TromblColors.jomo, TromblColors.jomo.withOpacity(0.7)],
+                ? [TromblColors.fomo, TromblColors.fomo.withValues(alpha:0.7)]
+                : [TromblColors.jomo, TromblColors.jomo.withValues(alpha:0.7)],
           ),
           borderRadius: BorderRadius.circular(14),
         ),

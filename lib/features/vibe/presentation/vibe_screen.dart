@@ -26,10 +26,30 @@ class VibeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Auto-redirect when today's session is restored from DB
-    ref.listen(activeSessionProvider, (_, session) {
-      if (session != null && context.mounted) context.go('/menu');
+    // Watch FIRST — this initialises ActiveSessionNotifier and triggers
+    // _tryRestore(). Must happen before any early return or the notifier
+    // never starts and sessionRestoredProvider stays false forever.
+    final session = ref.watch(activeSessionProvider);
+    final restored = ref.watch(sessionRestoredProvider);
+
+    // Always wire the listener so we catch the session appearing after
+    // the user picks a vibe (or after restore completes).
+    ref.listen(activeSessionProvider, (_, next) {
+      if (next != null && context.mounted) context.go('/menu');
     });
+
+    // While restore is in flight: blank screen, no flash of picker.
+    if (!restored) {
+      return const Scaffold(backgroundColor: TromblColors.bg);
+    }
+
+    // Restore done + session exists → go to menu without showing picker.
+    if (session != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go('/menu');
+      });
+      return const Scaffold(backgroundColor: TromblColors.bg);
+    }
 
     final city = ref.watch(cityProvider);
 
@@ -213,7 +233,7 @@ class _VibeCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: TromblColors.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withOpacity(0.35)),
+          border: Border.all(color: accent.withValues(alpha:0.35)),
         ),
         child: Row(
           children: [

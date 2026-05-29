@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/app_config.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/trombl_theme.dart';
+import 'core/notifications/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,14 +20,57 @@ Future<void> main() async {
     anonKey: AppConfig.supabaseAnonKey,
   );
 
+  // Init notification service (no permission prompt yet — just primes the channel).
+  await NotificationService().init();
+
   runApp(const ProviderScope(child: TromblApp()));
 }
 
-class TromblApp extends ConsumerWidget {
+class TromblApp extends ConsumerStatefulWidget {
   const TromblApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TromblApp> createState() => _TromblAppState();
+}
+
+class _TromblAppState extends ConsumerState<TromblApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Schedule notifications once Supabase auth is ready
+    _maybeScheduleNotifications();
+  }
+
+  void _maybeScheduleNotifications() {
+    // Listen for first sign-in and schedule daily reminders
+    final client = Supabase.instance.client;
+    client.auth.onAuthStateChange.listen((event) {
+      if (event.event == AuthChangeEvent.signedIn) {
+        // Request permission + schedule — fire and forget, never block UI
+        NotificationService()
+            .requestPermission()
+            .then((granted) {
+              if (granted) return NotificationService().scheduleDailyReminders();
+            })
+            .catchError((_) {}); // permission or scheduling failure is non-fatal
+      } else if (event.event == AuthChangeEvent.signedOut) {
+        NotificationService().cancelAll().catchError((_) {});
+      }
+    });
+
+    // If already signed in (app cold start with existing session)
+    if (client.auth.currentUser != null) {
+      NotificationService()
+          .requestPermission()
+          .then((granted) {
+            if (granted) return NotificationService().scheduleDailyReminders();
+          })
+          .catchError((_) {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'trombl',
@@ -44,14 +88,18 @@ class _ConfigErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        backgroundColor: const Color(0xFF0B0B0D),
+        backgroundColor: TromblColors.bg,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Text(
               "missing config.\nrun with --dart-define=SUPABASE_URL=... and SUPABASE_ANON_KEY=...",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withOpacity(0.6), height: 1.5),
+              style: TextStyle(
+                color: TromblColors.textSub,
+                fontFamily: TromblText.sans,
+                height: 1.5,
+              ),
             ),
           ),
         ),
