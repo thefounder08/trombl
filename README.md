@@ -65,6 +65,65 @@ This is simpler and safer than the three-SDK setup, and it means no API key ever
 4. **Profile read** — richer derivation (go-to move, history scrapbook) matching the prototype's `deriveRead`.
 5. **Plan / invite loop** — the shareable plan page (needs the `plans` public-read path already in the DB).
 
+## Web build
+
+### Dev server
+
+```bash
+flutter run -d chrome \
+  --dart-define=SUPABASE_URL=https://stbiwzvaykwhdirwmwku.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<your-anon-key>
+```
+
+### Production build
+
+```bash
+flutter build web --release --base-href /
+# output → build/web/
+```
+
+The `[[redirects]]`
+rule in `netlify.toml` ensures all GoRouter paths (including `/p/:token` plan links)
+serve `index.html` so deep-link navigation works correctly.
+
+### Netlify
+
+`netlify.toml` is pre-configured. Connect the repo, then set these env vars in
+**Netlify → Build → Environment**:
+
+| Variable | Value |
+|---|---|
+| `SUPABASE_URL` | `https://stbiwzvaykwhdirwmwku.supabase.co` |
+| `SUPABASE_ANON_KEY` | your anon key |
+
+For magic-link auth on the hosted domain, add it to Supabase:
+**Authentication → URL Configuration → Redirect URLs → `https://your-site.netlify.app/**`**
+
+### Push notifications on web
+
+Push notifications (FCM) are **not available on the web build** — `firebase_messaging`
+requires a service worker setup that conflicts with Flutter web's own SW. The full
+vibe → menu → response flow works on web; only the nudge layer is absent.
+
+## Firebase setup (required for push notifications on native)
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com)
+2. **Android:** add app with package `com.example.trombl`, download `google-services.json`
+   → place at `android/app/google-services.json`
+3. **iOS:** add app, download `GoogleService-Info.plist`
+   → place at `ios/Runner/GoogleService-Info.plist`
+4. In `android/app/build.gradle.kts` add `id("com.google.gms.google-services")` to plugins
+5. In `android/build.gradle.kts` add the plugin classpath (version `4.4.0`)
+
+## Backend
+
+- Supabase project: `stbiwzvaykwhdirwmwku`
+- Edge functions: `llm-proxy` (Gemini), `send-nudge` (FCM nudges)
+- Apply migration `0002_push_tokens.sql` via dashboard or `supabase db push`
+- Deploy nudge function: `supabase functions deploy send-nudge`
+- Set `FCM_SERVER_KEY` secret in Supabase → Edge Functions → Secrets
+- Add `io.trombl://login-callback` to Supabase → Authentication → Redirect URLs
+
 ## Notes
 
 - Run `build_runner` before first launch — `models.freezed.dart` and `models.g.dart` are generated, not committed.

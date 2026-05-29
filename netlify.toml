@@ -1,0 +1,27 @@
+# Netlify config for trombl web client.
+# Docs: https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  # Build from the Flutter app directory (adjust if repo root differs).
+  base    = "."
+  publish = "build/web"
+  # Flutter 3.22+ uses Wasm/Skwasm by default; --web-renderer was removed.
+  command = "flutter build web --release --base-href /"
+
+[build.environment]
+  # Flutter version pinned — update when you upgrade.
+  FLUTTER_VERSION = "3.22.0"
+
+# SPA catch-all: every path serves index.html so GoRouter deep links work.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
