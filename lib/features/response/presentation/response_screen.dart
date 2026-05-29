@@ -8,6 +8,7 @@ import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../../menu/domain/action_engine.dart';
 import '../../menu/domain/menu_models.dart';
+import '../../plan/presentation/create_plan_screen.dart';
 import '../providers/reaction_provider.dart';
 
 /// Passed via GoRouter's `extra` parameter.
@@ -175,12 +176,43 @@ class ResponseScreen extends ConsumerWidget {
                               ),
                             );
                           case ActionResult.launched:
-                            break; // app is now in background — stay on this screen
+                            // For squad tag — after WhatsApp launches, offer to
+                            // store the plan and share the link too.
+                            if (args.tag == 'squad' && context.mounted) {
+                              final reactionText = reaction.valueOrNull;
+                              context.push('/create-plan',
+                                  extra: CreatePlanArgs(
+                                    vibe: args.vibe,
+                                    optionLabel: args.optionLabel,
+                                    reactionText: reactionText,
+                                  ));
+                            }
                         }
                       },
                     ),
                     const SizedBox(height: 10),
                   ],
+
+                  // "make it a plan" shortcut for squad picks
+                  if (args.tag == 'squad')
+                    reaction.maybeWhen(
+                      data: (text) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _SecondaryButton(
+                          label: 'make it a plan 🤙',
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            context.push('/create-plan',
+                                extra: CreatePlanArgs(
+                                  vibe: args.vibe,
+                                  optionLabel: args.optionLabel,
+                                  reactionText: text,
+                                ));
+                          },
+                        ),
+                      ),
+                      orElse: () => const SizedBox.shrink(),
+                    ),
 
                   // Share reaction
                   reaction.maybeWhen(

@@ -13,6 +13,8 @@ import '../../features/response/presentation/dnd_screen.dart';
 import '../../features/checkin/presentation/checkin_screen.dart';
 import '../../features/checkin/presentation/day_summary_screen.dart';
 import '../../features/summary/presentation/summary_screen.dart';
+import '../../features/plan/presentation/plan_landing_screen.dart';
+import '../../features/plan/presentation/create_plan_screen.dart';
 import '../../features/plans/presentation/plan_detail_screen.dart';
 import '../../features/plans/presentation/join_plan_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
@@ -110,15 +112,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             s.pageKey, PlanDetailScreen(planId: s.pathParameters['id']!)),
       ),
       GoRoute(
+        path: '/create-plan',
+        pageBuilder: (_, s) =>
+            _page(s.pageKey, CreatePlanScreen(args: s.extra! as CreatePlanArgs)),
+      ),
+      GoRoute(
         path: '/join-plan',
         pageBuilder: (_, s) => _page(s.pageKey, const JoinPlanScreen()),
       ),
       // Public — no auth required. Deep-link: trombl.app/p/{token}
+      // Routes to PlanLandingScreen (shows plan details + i'm in / can't tonight).
       GoRoute(
         path: '/p/:token',
         pageBuilder: (_, s) => _page(
           s.pageKey,
-          JoinPlanScreen(initialToken: s.pathParameters['token']),
+          PlanLandingScreen(token: s.pathParameters['token']!),
         ),
       ),
       GoRoute(
