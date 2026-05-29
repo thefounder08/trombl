@@ -40,9 +40,12 @@ class VibeScreen extends ConsumerWidget {
       if (next != null && context.mounted) context.go('/menu');
     });
 
-    // While restore is in flight: blank screen, no flash of picker.
+    // While restore is in flight — show a subtle loading state, not pure black.
     if (!restored) {
-      return const Scaffold(backgroundColor: TromblColors.bg);
+      return const Scaffold(
+        backgroundColor: TromblColors.bg,
+        body: _TromLoadingScreen(),
+      );
     }
 
     // Restore done + session exists → go to menu without showing picker.
@@ -253,6 +256,61 @@ class _VibeCard extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Loading screen shown while session is being restored from DB ─────────────
+// Replaces the pure-black blank so users know something is happening.
+
+class _TromLoadingScreen extends StatefulWidget {
+  const _TromLoadingScreen();
+
+  @override
+  State<_TromLoadingScreen> createState() => _TromLoadingScreenState();
+}
+
+class _TromLoadingScreenState extends State<_TromLoadingScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1000))
+      ..repeat(reverse: true);
+    _anim = Tween(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: AnimatedBuilder(
+        animation: _anim,
+        builder: (_, __) => Opacity(
+          opacity: _anim.value,
+          child: const Text(
+            'trom.',
+            style: TextStyle(
+              fontFamily: TromblText.serif,
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: TromblColors.text,
+              letterSpacing: -0.5,
+            ),
+          ),
         ),
       ),
     );

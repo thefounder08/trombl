@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../providers.dart';
 import '../../features/onboarding/presentation/login_screen.dart';
 import '../../features/onboarding/presentation/setup_screen.dart';
+import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/vibe/presentation/vibe_screen.dart';
 import '../../features/menu/presentation/menu_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -68,6 +69,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/setup',
         pageBuilder: (_, s) => _page(s.pageKey, const SetupScreen()),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        pageBuilder: (_, s) => _page(s.pageKey, const OnboardingScreen()),
       ),
       GoRoute(
         path: '/vibe',

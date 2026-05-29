@@ -27,7 +27,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     if (name.isEmpty) return;
     setState(() => _loading = true);
     await ref.read(sessionRepositoryProvider).updateProfile(displayName: name);
-    if (mounted) context.go('/vibe');
+    // New users go through onboarding before picking their first vibe.
+    if (mounted) context.go('/onboarding');
   }
 
   @override
@@ -111,7 +112,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
               const SizedBox(height: 10),
               GestureDetector(
-                onTap: () => context.go('/vibe'),
+                onTap: () => context.go('/onboarding'),
                 child: const Center(
                   child: Text(
                     'skip for now',
