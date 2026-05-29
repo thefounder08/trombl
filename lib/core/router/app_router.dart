@@ -12,6 +12,7 @@ import '../../features/response/presentation/response_screen.dart';
 import '../../features/response/presentation/dnd_screen.dart';
 import '../../features/checkin/presentation/checkin_screen.dart';
 import '../../features/checkin/presentation/day_summary_screen.dart';
+import '../../features/summary/presentation/summary_screen.dart';
 import '../../features/plans/presentation/plan_detail_screen.dart';
 import '../../features/plans/presentation/join_plan_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
@@ -91,8 +92,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/checkin',
         pageBuilder: (_, s) => _page(s.pageKey, const CheckinScreen()),
       ),
+      // /summary — hardcoded reactive verdict (spec Commit 3)
       GoRoute(
         path: '/summary',
+        pageBuilder: (_, s) =>
+            _page(s.pageKey, SummaryScreen(args: s.extra! as SummaryArgs)),
+      ),
+      // /day-summary — LLM-generated end-of-day narrative (legacy, still reachable)
+      GoRoute(
+        path: '/day-summary',
         pageBuilder: (_, s) => _page(
             s.pageKey, DaySummaryScreen(args: s.extra! as DaySummaryScreenArgs)),
       ),

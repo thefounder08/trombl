@@ -7,7 +7,7 @@ import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/checkin_providers.dart';
-import 'day_summary_screen.dart';
+import '../../summary/presentation/summary_screen.dart';
 
 class CheckinScreen extends ConsumerWidget {
   const CheckinScreen({super.key});
@@ -189,11 +189,10 @@ class _WrapButton extends ConsumerWidget {
         HapticFeedback.heavyImpact();
         await ref.read(checkinPicksProvider.notifier).wrapDay();
         if (!context.mounted) return;
-        context.pushReplacement('/summary', extra: DaySummaryScreenArgs(
-          vibe: vibe,
-          total: total,
+        // Navigate to the spec-compliant reactive summary screen.
+        context.pushReplacement('/summary', extra: SummaryArgs(
           done: done,
-          doneLabels: picks.where((p) => p.done).map((p) => p.label).toList(),
+          total: total,
         ));
       },
       child: Container(
