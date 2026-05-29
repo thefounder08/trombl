@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/trombl_theme.dart';
+import '../../../../core/observability/analytics_service.dart';
 import '../../../../shared/result.dart';
 import '../../../vibe/providers/session_providers.dart';
 import '../../domain/menu_data.dart';
@@ -127,7 +128,11 @@ class OptionsSheet extends ConsumerWidget {
                           ),
                         );
                       }
-                    : () => _onPick(context, ref, opt),
+                    : () {
+                        AnalyticsService.categoryOpened(
+                          categoryId: category.id, vibe: vibe);
+                        _onPick(context, ref, opt);
+                      },
               )),
         ],
       ),
@@ -158,6 +163,12 @@ class OptionsSheet extends ConsumerWidget {
 
     switch (result) {
       case Success(:final data):
+        AnalyticsService.optionSelected(
+          categoryId: category.id,
+          optionId: opt.id,
+          tag: opt.tag,
+          vibe: vibe,
+        );
         // Store in activePickProvider so other widgets can read it.
         ref.read(activePickProvider.notifier).set(category, opt);
         context.push('/response',

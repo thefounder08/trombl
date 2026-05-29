@@ -271,7 +271,7 @@ class _ShareSection extends StatelessWidget {
                   mode: LaunchMode.externalApplication,
                 ).catchError((_) async {
                   // fallback to web WhatsApp
-                  await launchUrl(
+                  return launchUrl(
                     Uri.parse(
                         'https://api.whatsapp.com/send?text=${Uri.encodeComponent(shareText)}'),
                     mode: LaunchMode.externalApplication,

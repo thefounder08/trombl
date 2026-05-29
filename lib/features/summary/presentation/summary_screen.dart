@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/trombl_theme.dart';
+import '../../../core/observability/analytics_service.dart';
 import '../../menu/providers/menu_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 
@@ -73,6 +74,7 @@ class SummaryScreen extends ConsumerWidget {
                 label: 'new vibe',
                 onTap: () {
                   HapticFeedback.lightImpact();
+                  AnalyticsService.newVibeStarted();
                   ref.read(activeSessionProvider.notifier).clear();
                   ref.read(activePickProvider.notifier).clear();
                   context.go('/vibe');

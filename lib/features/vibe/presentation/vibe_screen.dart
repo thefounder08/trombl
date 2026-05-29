@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/trombl_theme.dart';
+import '../../../core/observability/analytics_service.dart';
 import '../providers/session_providers.dart';
 
 /// The heart of the app: fomo vs jomo. Picking creates a real session row.
@@ -21,6 +22,7 @@ class VibeScreen extends ConsumerWidget {
       }
       return;
     }
+    AnalyticsService.vibePicked(vibe: vibe);
     if (context.mounted) context.go('/menu');
   }
 

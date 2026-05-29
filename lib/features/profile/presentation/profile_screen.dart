@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/ai/models/llm_message.dart';
 import '../../../core/ai/system_prompts.dart';
@@ -377,6 +378,8 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            // App version
+            const _AppVersion(),
             // Pinned sign-out
             GestureDetector(
               onTap: () async {
@@ -551,6 +554,45 @@ class _MemoryChip extends StatelessWidget {
     );
   }
 }
+
+// ─── App version ─────────────────────────────────────────────────────────────
+
+class _AppVersion extends StatefulWidget {
+  const _AppVersion();
+
+  @override
+  State<_AppVersion> createState() => _AppVersionState();
+}
+
+class _AppVersionState extends State<_AppVersion> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = 'v${info.version}+${info.buildNumber}');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => _version.isEmpty
+      ? const SizedBox.shrink()
+      : Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            _version,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: TromblColors.textMuted,
+              fontSize: 11,
+              fontFamily: TromblText.sans,
+            ),
+          ),
+        );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _TromTyping extends StatefulWidget {
   const _TromTyping();

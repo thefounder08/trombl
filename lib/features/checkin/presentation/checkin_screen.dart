@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/trombl_theme.dart';
+import '../../../core/observability/analytics_service.dart';
 import '../../../shared/models/models.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/checkin_providers.dart';
@@ -187,7 +188,10 @@ class _WrapButton extends ConsumerWidget {
     return GestureDetector(
       onTap: () async {
         HapticFeedback.heavyImpact();
+        AnalyticsService.checkinStarted(pickCount: total);
         await ref.read(checkinPicksProvider.notifier).wrapDay();
+        AnalyticsService.sessionWrapped(
+          vibe: vibe, totalPicks: total, donePicks: done);
         if (!context.mounted) return;
         // Navigate to the spec-compliant reactive summary screen.
         context.pushReplacement('/summary', extra: SummaryArgs(

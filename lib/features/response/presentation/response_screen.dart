@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/trombl_theme.dart';
+import '../../../core/observability/analytics_service.dart';
 import '../../../shared/models/models.dart';
 import '../../menu/domain/action_engine.dart';
 import '../../menu/domain/menu_models.dart';
@@ -157,9 +158,14 @@ class ResponseScreen extends ConsumerWidget {
                           vibe: args.vibe,
                           tromMessage: args.tromMessage,
                         );
+                        AnalyticsService.actionLaunched(
+                          tag: args.tag,
+                          result: result.name,
+                        );
                         if (!context.mounted) return;
                         switch (result) {
                           case ActionResult.dndInternal:
+                            AnalyticsService.dndEntered();
                             context.push('/dnd');
                           case ActionResult.comingSoon:
                             ScaffoldMessenger.of(context).showSnackBar(

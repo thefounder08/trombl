@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,8 +9,18 @@ import 'core/app_config.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/trombl_theme.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/observability/analytics_service.dart';
+import 'core/observability/crash_service.dart';
 
 Future<void> main() async {
+  // Wrap everything in a zone so unhandled async errors are captured.
+  await runZonedGuarded(
+    _boot,
+    CrashService.onAsyncError,
+  );
+}
+
+Future<void> _boot() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (!AppConfig.isConfigured) {
@@ -21,15 +33,16 @@ Future<void> main() async {
     anonKey: AppConfig.supabaseAnonKey,
   );
 
-  // Firebase must be initialized before NotificationService accesses FCM.
-  // Silently skipped if google-services.json / GoogleService-Info.plist are absent.
+  // Firebase init — silently skipped if config files are absent.
+  // CrashService + AnalyticsService gracefully no-op until this succeeds.
   try {
     await Firebase.initializeApp();
+    CrashService.init();
+    AnalyticsService.init();
   } catch (e) {
-    debugPrint('[Firebase] init skipped (no config file yet): $e');
+    debugPrint('[Firebase] init skipped (no config files yet): $e');
   }
 
-  // Init notification service (no permission prompt yet — just primes the channel).
   await NotificationService().init();
 
   runApp(const ProviderScope(child: TromblApp()));
@@ -46,32 +59,44 @@ class _TromblAppState extends ConsumerState<TromblApp> {
   @override
   void initState() {
     super.initState();
-    // Schedule notifications once Supabase auth is ready
-    _maybeScheduleNotifications();
+    _listenAuth();
   }
 
-  void _maybeScheduleNotifications() {
-    // Listen for first sign-in and schedule daily reminders
+  void _listenAuth() {
     final client = Supabase.instance.client;
+
+    // Handle sign-in: identify user in crash/analytics, register FCM token.
     client.auth.onAuthStateChange.listen((event) {
       if (event.event == AuthChangeEvent.signedIn) {
-        // Request permission + register FCM token + schedule — fire and forget
+        final uid = event.session?.user.id;
+        if (uid != null) {
+          CrashService.setUser(uid);
+          AnalyticsService.setUser(uid);
+        }
         NotificationService()
             .requestPermission()
             .then((granted) async {
+              if (granted) {
+                AnalyticsService.notificationPermissionGranted();
+              }
               if (!granted) return;
               await NotificationService().registerToken();
               await NotificationService().scheduleDailyReminders();
             })
             .catchError((_) {});
       } else if (event.event == AuthChangeEvent.signedOut) {
+        CrashService.clearUser();
+        AnalyticsService.clearUser();
         NotificationService().unregisterTokens().catchError((_) {});
         NotificationService().cancelAll().catchError((_) {});
       }
     });
 
-    // Already signed in (cold start with existing session)
-    if (client.auth.currentUser != null) {
+    // Cold start — already signed in.
+    final current = client.auth.currentUser;
+    if (current != null) {
+      CrashService.setUser(current.id);
+      AnalyticsService.setUser(current.id);
       NotificationService()
           .requestPermission()
           .then((granted) async {
@@ -98,6 +123,7 @@ class _TromblAppState extends ConsumerState<TromblApp> {
 /// Shown when the app is built without Supabase env vars.
 class _ConfigErrorApp extends StatelessWidget {
   const _ConfigErrorApp();
+
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(

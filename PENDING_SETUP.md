@@ -8,6 +8,24 @@ Everything below is blocked until the customer's Google account is accessible.
 
 ---
 
+## ✅ Already done in codebase (no action needed)
+
+| What | Where |
+|---|---|
+| Firebase Analytics service + events | `lib/core/observability/analytics_service.dart` |
+| Firebase Crashlytics service + FlutterError.onError | `lib/core/observability/crash_service.dart` |
+| Global error boundary (`runZonedGuarded`) | `lib/main.dart` |
+| FCM push infrastructure | `lib/core/notifications/notification_service.dart` |
+| iOS `UIBackgroundModes → remote-notification` | `ios/Runner/Info.plist` |
+| iOS portrait-only orientation | `ios/Runner/Info.plist` |
+| Android `minSdk = 21` | `android/app/build.gradle.kts` |
+| App version display in profile | `lib/features/profile/presentation/profile_screen.dart` |
+| `dio` + `flutter_animate` removed (unused) | `pubspec.yaml` |
+
+**Everything above will activate automatically once Firebase config files are added.**
+
+---
+
 ## 🔴 BLOCKED — Firebase / Google Account
 
 **Why blocked:** Customer doesn't have Google account access right now.  
@@ -50,13 +68,28 @@ Everything below is blocked until the customer's Google account is accessible.
    - Open `ios/Runner.xcworkspace` in Xcode
    - Add the plist file to the Runner target (drag into Xcode project navigator)
 
-4. **Get the FCM Server Key**
+4. **Enable Analytics + Crashlytics in Firebase Console**
+   - Firebase Console → your project → Build → Crashlytics → Enable
+   - Firebase Console → your project → Analytics → Enable
+
+5. **Get the FCM Server Key**
    - Firebase Console → Project Settings → Cloud Messaging → Cloud Messaging API (Legacy)
    - Copy the Server Key
    - Go to: Supabase → `stbiwzvaykwhdirwmwku` → Edge Functions → Secrets
    - Add secret: `FCM_SERVER_KEY = <paste server key>`
 
-5. **Deploy the send-nudge edge function**
+5. **Run `flutterfire configure`** to generate `lib/firebase_options.dart`
+   ```bash
+   dart pub global activate flutterfire_cli
+   flutterfire configure --project=<your-firebase-project-id>
+   ```
+   Then update `main.dart` line `await Firebase.initializeApp();` to:
+   ```dart
+   import 'firebase_options.dart';
+   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+   ```
+
+6. **Deploy the send-nudge edge function**
    ```bash
    cd trombl-backend
    supabase functions deploy send-nudge --project-ref stbiwzvaykwhdirwmwku
