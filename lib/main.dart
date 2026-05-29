@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,6 +20,14 @@ Future<void> main() async {
     url: AppConfig.supabaseUrl,
     anonKey: AppConfig.supabaseAnonKey,
   );
+
+  // Firebase must be initialized before NotificationService accesses FCM.
+  // Silently skipped if google-services.json / GoogleService-Info.plist are absent.
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('[Firebase] init skipped (no config file yet): $e');
+  }
 
   // Init notification service (no permission prompt yet — just primes the channel).
   await NotificationService().init();
@@ -46,24 +55,29 @@ class _TromblAppState extends ConsumerState<TromblApp> {
     final client = Supabase.instance.client;
     client.auth.onAuthStateChange.listen((event) {
       if (event.event == AuthChangeEvent.signedIn) {
-        // Request permission + schedule — fire and forget, never block UI
+        // Request permission + register FCM token + schedule — fire and forget
         NotificationService()
             .requestPermission()
-            .then((granted) {
-              if (granted) return NotificationService().scheduleDailyReminders();
+            .then((granted) async {
+              if (!granted) return;
+              await NotificationService().registerToken();
+              await NotificationService().scheduleDailyReminders();
             })
-            .catchError((_) {}); // permission or scheduling failure is non-fatal
+            .catchError((_) {});
       } else if (event.event == AuthChangeEvent.signedOut) {
+        NotificationService().unregisterTokens().catchError((_) {});
         NotificationService().cancelAll().catchError((_) {});
       }
     });
 
-    // If already signed in (app cold start with existing session)
+    // Already signed in (cold start with existing session)
     if (client.auth.currentUser != null) {
       NotificationService()
           .requestPermission()
-          .then((granted) {
-            if (granted) return NotificationService().scheduleDailyReminders();
+          .then((granted) async {
+            if (!granted) return;
+            await NotificationService().registerToken();
+            await NotificationService().scheduleDailyReminders();
           })
           .catchError((_) {});
     }
