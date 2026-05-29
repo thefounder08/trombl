@@ -9,13 +9,14 @@ import '../../features/vibe/presentation/vibe_screen.dart';
 import '../../features/menu/presentation/menu_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/response/presentation/response_screen.dart';
+import '../../features/response/presentation/dnd_screen.dart';
 import '../../features/checkin/presentation/checkin_screen.dart';
 import '../../features/checkin/presentation/day_summary_screen.dart';
 import '../../features/plans/presentation/plan_detail_screen.dart';
 import '../../features/plans/presentation/join_plan_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 
-/// Shared transition: fade + 16px upward float.
+/// Shared fade+float page transition.
 Page<T> _page<T>(LocalKey key, Widget child) => CustomTransitionPage<T>(
       key: key,
       child: child,
@@ -40,15 +41,18 @@ Page<T> _page<T>(LocalKey key, Widget child) => CustomTransitionPage<T>(
       },
     );
 
-/// Auth-aware routing. Signed-out users land on /login; signed-in users
-/// start at /vibe (the first real moment — pick a vibe).
+/// Auth-aware routing. Public paths bypass the login guard so plan invite
+/// links work without requiring sign-in first.
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/login',
     redirect: (context, state) {
       final loggedIn = ref.read(currentUserProvider) != null;
-      final onLogin = state.matchedLocation == '/login';
-      if (!loggedIn && !onLogin) return '/login';
+      final loc = state.matchedLocation;
+      final onLogin = loc == '/login';
+      // /p/:token is public — visible to unauthenticated users.
+      final isPublic = loc.startsWith('/p/');
+      if (!loggedIn && !onLogin && !isPublic) return '/login';
       if (loggedIn && onLogin) return '/vibe';
       return null;
     },
@@ -80,6 +84,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             _page(s.pageKey, ResponseScreen(args: s.extra! as ResponseArgs)),
       ),
       GoRoute(
+        path: '/dnd',
+        pageBuilder: (_, s) => _page(s.pageKey, const DndScreen()),
+      ),
+      GoRoute(
         path: '/checkin',
         pageBuilder: (_, s) => _page(s.pageKey, const CheckinScreen()),
       ),
@@ -97,7 +105,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/join-plan',
         pageBuilder: (_, s) => _page(s.pageKey, const JoinPlanScreen()),
       ),
-      // Deep link: trombl.com/p/{token} — auto-joins the plan
+      // Public — no auth required. Deep-link: trombl.app/p/{token}
       GoRoute(
         path: '/p/:token',
         pageBuilder: (_, s) => _page(
@@ -113,7 +121,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Bridges Riverpod auth changes to GoRouter's refresh.
+/// Bridges Riverpod auth changes to GoRouter's refresh mechanism.
 class _AuthRefresh extends ChangeNotifier {
   _AuthRefresh(Ref ref) {
     ref.listen(authStateProvider, (_, __) => notifyListeners());

@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/trombl_theme.dart';
 import '../../../../shared/result.dart';
 import '../../../vibe/providers/session_providers.dart';
-import '../../data/categories.dart';
+import '../../domain/menu_data.dart';
+import '../../domain/menu_models.dart';
+import '../../providers/menu_providers.dart';
 import '../../../response/presentation/response_screen.dart';
 
 class OptionsSheet extends ConsumerWidget {
@@ -25,8 +27,10 @@ class OptionsSheet extends ConsumerWidget {
         color: TromblColors.cardLit,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: EdgeInsets.fromLTRB(22, 14, 22,
-          MediaQuery.of(context).padding.bottom + 28),
+      padding: EdgeInsets.fromLTRB(
+        22, 14, 22,
+        MediaQuery.of(context).padding.bottom + 28,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,9 +82,10 @@ class OptionsSheet extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
-                    color: TromblColors.newGlow,
+                    color: TromblColors.newDrop.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: TromblColors.newDrop.withValues(alpha: 0.35)),
+                    border: Border.all(
+                        color: TromblColors.newDrop.withValues(alpha: 0.35)),
                   ),
                   child: const Text(
                     'new',
@@ -106,56 +111,63 @@ class OptionsSheet extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Options list
+          // Option rows
           ...category.options.map((opt) => _OptionRow(
-            option: opt,
-            vibe: vibe,
-            accent: accent,
-            onTap: opt.isComingSoon
-                ? () {
-                    HapticFeedback.selectionClick();
-                    // Gentle toast for coming soon
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('dropping soon 👀'),
-                        duration: Duration(seconds: 2),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                : () => _onPick(context, ref, opt),
-          )),
+                option: opt,
+                accent: accent,
+                onTap: opt.isComingSoon
+                    ? () {
+                        HapticFeedback.selectionClick();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                                Text("trom's still cooking this one. soon."),
+                            duration: Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    : () => _onPick(context, ref, opt),
+              )),
         ],
       ),
     );
   }
 
-  Future<void> _onPick(BuildContext context, WidgetRef ref, MenuOption opt) async {
+  Future<void> _onPick(
+      BuildContext context, WidgetRef ref, MenuOption opt) async {
     HapticFeedback.mediumImpact();
     final session = ref.read(activeSessionProvider);
     if (session == null) return;
 
     Navigator.of(context).pop();
 
+    // Pre-generate squad message before writing the pick row.
+    final tromMessage =
+        opt.tag == 'squad' ? TromblMenu.squadMessage(vibe) : null;
+
     final result = await ref.read(sessionRepositoryProvider).addPick(
-      sessionId: session.id,
-      categoryId: category.id,
-      optionId: opt.id,
-      label: opt.label,
-      tag: opt.tag,
-    );
+          sessionId: session.id,
+          categoryId: category.id,
+          optionId: opt.id,
+          label: opt.label,
+          tag: opt.tag,
+        );
 
     if (!context.mounted) return;
 
     switch (result) {
       case Success(:final data):
-        context.push('/response', extra: ResponseArgs(
-          pick: data,
-          vibe: vibe,
-          optionLabel: opt.label,
-          action: opt.action,
-          actionData: opt.actionData,
-        ));
+        // Store in activePickProvider so other widgets can read it.
+        ref.read(activePickProvider.notifier).set(category, opt);
+        context.push('/response',
+            extra: ResponseArgs(
+              pick: data,
+              vibe: vibe,
+              optionLabel: opt.label,
+              tag: opt.tag,
+              tromMessage: tromMessage,
+            ));
       case Failure(:final error):
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(error)),
@@ -169,24 +181,20 @@ class OptionsSheet extends ConsumerWidget {
 class _OptionRow extends StatelessWidget {
   const _OptionRow({
     required this.option,
-    required this.vibe,
     required this.accent,
     required this.onTap,
   });
   final MenuOption option;
-  final String vibe;
   final Color accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final isDisabled = option.isComingSoon;
-
     return GestureDetector(
       onTap: onTap,
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 150),
-        opacity: isDisabled ? 0.38 : 1.0,
+        opacity: option.isComingSoon ? 0.38 : 1.0,
         child: Container(
           margin: const EdgeInsets.only(bottom: 9),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -194,7 +202,7 @@ class _OptionRow extends StatelessWidget {
             color: TromblColors.card,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isDisabled
+              color: option.isComingSoon
                   ? Colors.transparent
                   : accent.withValues(alpha: 0.14),
             ),
@@ -205,7 +213,9 @@ class _OptionRow extends StatelessWidget {
                 child: Text(
                   option.label,
                   style: TextStyle(
-                    color: isDisabled ? TromblColors.textSub : TromblColors.text,
+                    color: option.isComingSoon
+                        ? TromblColors.textSub
+                        : TromblColors.text,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     fontFamily: TromblText.sans,
@@ -214,7 +224,7 @@ class _OptionRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              _TagChip(action: option.action, tag: option.tag, accent: accent),
+              _TagChip(tag: option.tag),
             ],
           ),
         ),
@@ -226,14 +236,12 @@ class _OptionRow extends StatelessWidget {
 // ─── Tag chip ─────────────────────────────────────────────────────────────────
 
 class _TagChip extends StatelessWidget {
-  const _TagChip({required this.action, required this.tag, required this.accent});
-  final ActionType action;
+  const _TagChip({required this.tag});
   final String tag;
-  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    if (action == ActionType.comingSoon) {
+    if (tag == 'coming soon') {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
@@ -253,19 +261,18 @@ class _TagChip extends StatelessWidget {
       );
     }
 
-    if (action == ActionType.none) return const SizedBox.shrink();
-
+    final color = TromblColors.tagColorFor(tag);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withValues(alpha: 0.28)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         '⚡ $tag',
         style: TextStyle(
-          color: accent,
+          color: color,
           fontSize: 9,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.3,

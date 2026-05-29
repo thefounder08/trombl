@@ -6,7 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../checkin/providers/checkin_providers.dart';
-import '../data/categories.dart';
+import '../domain/menu_data.dart';
+import '../domain/menu_models.dart';
 import 'widgets/options_sheet.dart';
 
 class MenuScreen extends ConsumerWidget {
@@ -14,25 +15,33 @@ class MenuScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session   = ref.watch(activeSessionProvider);
-    final vibe      = session?.vibe ?? 'fomo';
-    final accent    = TromblColors.accentFor(vibe);
-    final categories = Categories.forVibe(vibe);
-    final newDrop   = Categories.newDropFor(vibe);
-    final pickCount = ref.watch(todayPickCountProvider);
+    final session = ref.watch(activeSessionProvider);
+
+    // Guard: no active session → go pick a vibe.
+    if (session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go('/vibe');
+      });
+      return const Scaffold(backgroundColor: TromblColors.bg);
+    }
+
+    final vibe       = session.vibe;
+    final accent     = TromblColors.accentFor(vibe);
+    final categories = TromblMenu.core(vibe);
+    final drop       = TromblMenu.newDrop(vibe);
+    final pickCount  = ref.watch(todayPickCountProvider);
 
     return Scaffold(
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Top bar ──────────────────────────────────────────────────
+            // ── Top bar ───────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Vibe chip + pick counter
                   Row(
                     children: [
                       _VibeChip(
@@ -49,27 +58,30 @@ class MenuScreen extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  // Nav actions
                   Row(
                     children: [
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.push('/checkin');
-                        },
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                          child: Text(
-                            'wrap day',
-                            style: TextStyle(
-                              color: TromblColors.textMuted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                      // "wrap up" only once 2+ picks exist
+                      if (pickCount >= 2)
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            context.push('/checkin');
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 6),
+                            child: Text(
+                              'wrap up',
+                              style: TextStyle(
+                                color: TromblColors.textMuted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: TromblText.sans,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
+                      if (pickCount >= 2) const SizedBox(width: 14),
                       GestureDetector(
                         onTap: () => context.push('/profile'),
                         child: Container(
@@ -80,7 +92,10 @@ class MenuScreen extends ConsumerWidget {
                             border: Border.all(color: TromblColors.border),
                           ),
                           child: const Center(
-                            child: Text('○', style: TextStyle(color: TromblColors.textSub, fontSize: 14)),
+                            child: Text('○',
+                                style: TextStyle(
+                                    color: TromblColors.textSub,
+                                    fontSize: 14)),
                           ),
                         ),
                       ),
@@ -111,7 +126,6 @@ class MenuScreen extends ConsumerWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 children: [
-                  // 2-col grid of core 4 categories
                   GridView.count(
                     crossAxisCount: 2,
                     crossAxisSpacing: 10,
@@ -119,14 +133,12 @@ class MenuScreen extends ConsumerWidget {
                     childAspectRatio: 1.05,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    children: categories.map((cat) => _CategoryCard(
-                      category: cat,
-                      vibe: vibe,
-                    )).toList(),
+                    children: categories
+                        .map((cat) => _CategoryCard(category: cat, vibe: vibe))
+                        .toList(),
                   ),
                   const SizedBox(height: 10),
-                  // NEW DROP — full-width card
-                  _NewDropCard(category: newDrop, vibe: vibe),
+                  _NewDropCard(category: drop, vibe: vibe),
                 ],
               ),
             ),
@@ -155,7 +167,8 @@ class MenuScreen extends ConsumerWidget {
 // ─── Vibe chip ────────────────────────────────────────────────────────────────
 
 class _VibeChip extends StatelessWidget {
-  const _VibeChip({required this.vibe, required this.accent, required this.onTap});
+  const _VibeChip(
+      {required this.vibe, required this.accent, required this.onTap});
   final String vibe;
   final Color accent;
   final VoidCallback onTap;
@@ -169,7 +182,8 @@ class _VibeChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: accent.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha: 0.28), width: 1),
+          border:
+              Border.all(color: accent.withValues(alpha: 0.28), width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -237,11 +251,15 @@ class _CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = TromblColors.accentFor(vibe);
-
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
-        _openSheet(context);
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => OptionsSheet(category: category, vibe: vibe),
+        );
       },
       child: Container(
         decoration: BoxDecoration(
@@ -285,15 +303,6 @@ class _CategoryCard extends StatelessWidget {
       ),
     );
   }
-
-  void _openSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => OptionsSheet(category: category, vibe: vibe),
-    );
-  }
 }
 
 // ─── NEW DROP card ────────────────────────────────────────────────────────────
@@ -319,23 +328,24 @@ class _NewDropCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: TromblColors.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: TromblColors.newDrop.withValues(alpha: 0.28)),
+          border: Border.all(
+              color: TromblColors.newDrop.withValues(alpha: 0.28)),
         ),
         padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            // Left: icon + titles
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: TromblColors.newGlow,
+                      color: TromblColors.newDrop.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: TromblColors.newDrop.withValues(alpha: 0.35)),
+                      border: Border.all(
+                          color: TromblColors.newDrop.withValues(alpha: 0.35)),
                     ),
                     child: const Text(
                       '⚡ new this week',
@@ -351,7 +361,8 @@ class _NewDropCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      Text(category.emoji, style: const TextStyle(fontSize: 22)),
+                      Text(category.emoji,
+                          style: const TextStyle(fontSize: 22)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -380,7 +391,6 @@ class _NewDropCard extends StatelessWidget {
                 ],
               ),
             ),
-            // Right: arrow
             const SizedBox(width: 12),
             Text(
               '→',
