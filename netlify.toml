@@ -4,7 +4,7 @@
 [build]
   base    = "."
   publish = "build/web"
-  command = "git clone https://github.com/flutter/flutter.git --branch $FLUTTER_VERSION --depth 1 $HOME/flutter && export PATH=$PATH:$HOME/flutter/bin && flutter pub get && flutter build web --release --base-href / --no-wasm-dry-run --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+  command = "git clone https://github.com/flutter/flutter.git --branch $FLUTTER_VERSION --depth 1 $HOME/flutter && export PATH=$PATH:$HOME/flutter/bin && flutter pub get && dart run build_runner build --delete-conflicting-outputs && flutter build web --release --base-href / --no-wasm-dry-run --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
 
 [build.environment]
   FLUTTER_VERSION = "3.41.0"
