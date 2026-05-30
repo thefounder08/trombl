@@ -7,6 +7,7 @@ import '../../../../core/theme/trombl_theme.dart';
 import '../../../../core/observability/analytics_service.dart';
 import '../../../../shared/result.dart';
 import '../../../vibe/providers/session_providers.dart';
+import '../../../checkin/providers/checkin_providers.dart';
 import '../../domain/menu_data.dart';
 import '../../domain/menu_models.dart';
 import '../../providers/menu_providers.dart';
@@ -169,6 +170,7 @@ class OptionsSheet extends ConsumerWidget {
           tag: opt.tag,
           vibe: vibe,
         );
+        ref.invalidate(checkinPicksProvider);
         // Store in activePickProvider so other widgets can read it.
         ref.read(activePickProvider.notifier).set(category, opt);
         context.push('/response',

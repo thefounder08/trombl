@@ -26,7 +26,7 @@ android {
         applicationId = "com.example.trombl"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 21 // FCM + flutter_local_notifications both require >= 21
+        minSdk = flutter.minSdkVersion // FCM + flutter_local_notifications both require >= 21
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

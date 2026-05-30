@@ -35,7 +35,10 @@ class LoginScreen extends HookConsumerWidget {
       }
       loading.value = true;
       try {
-        await ref.read(supabaseProvider).auth.signInWithOtp(email: raw);
+        await ref.read(supabaseProvider).auth.signInWithOtp(
+              email: raw,
+              emailRedirectTo: 'io.trombl://login-callback',
+            );
         sentEmail.value = raw;
         sent.value = true;
         // Start 30s resend cooldown
