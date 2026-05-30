@@ -171,13 +171,15 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
     HapticFeedback.mediumImpact();
     setState(() => _loading = true);
 
+    // expires_at = starts_at + 3 h so the landing page can show urgency.
+    final expiresAt = _startsAt?.add(const Duration(hours: 3));
+
     final result = await ref.read(featurePlanRepoProvider).createPlan(
-      vibe:   widget.args.vibe,
-      title:  title,
-      detail: detail.isEmpty ? null : detail,
-      // TODO: add startsAt: _startsAt once the DB migration is applied:
-      //   alter table public.plans add column starts_at timestamptz;
-      //   alter table public.plans add column expires_at timestamptz;
+      vibe:      widget.args.vibe,
+      title:     title,
+      detail:    detail.isEmpty ? null : detail,
+      startsAt:  _startsAt,
+      expiresAt: expiresAt,
     );
 
     if (!mounted) return;
