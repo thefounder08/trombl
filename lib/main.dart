@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/app_config.dart';
@@ -13,6 +15,8 @@ import 'core/observability/analytics_service.dart';
 import 'core/observability/crash_service.dart';
 
 Future<void> main() async {
+  // Use path-based URLs on web (/p/token) instead of hash-based (#/login).
+  if (kIsWeb) usePathUrlStrategy();
   // Wrap everything in a zone so unhandled async errors are captured.
   await runZonedGuarded(
     _boot,

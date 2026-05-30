@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
   flutter_riverpod: ^2.5.0
   hooks_riverpod: ^2.5.0
   flutter_hooks: ^0.20.5
