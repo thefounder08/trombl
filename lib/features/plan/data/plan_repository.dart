@@ -34,7 +34,7 @@ class FeaturePlanRepository {
           .select()
           .single();
       final plan = Plan.fromJson(row);
-      final shareUrl = 'https://trombl.app/p/${plan.shareToken}';
+      final shareUrl = 'https://trombl.netlify.app/p/${plan.shareToken}';
       return Success((plan: plan, shareUrl: shareUrl));
     } catch (_) {
       return const Failure("couldn't make the plan. try again?");
