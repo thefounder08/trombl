@@ -9,6 +9,42 @@ import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../providers/plan_providers.dart';
 
+Future<bool> _confirmCancel(BuildContext context) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: TromblColors.card,
+          title: const Text(
+            'cancel this plan?',
+            style: TextStyle(
+              color: TromblColors.text,
+              fontFamily: TromblText.serif,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: const Text(
+            "this removes the plan for everyone. can't undo.",
+            style: TextStyle(color: TromblColors.textSub, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('keep it',
+                  style: TextStyle(color: TromblColors.textMuted)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('cancel plan',
+                  style: TextStyle(
+                      color: TromblColors.fomo, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
+
 class PlanDetailScreen extends ConsumerWidget {
   const PlanDetailScreen({super.key, required this.planId});
   final String planId;
@@ -82,9 +118,11 @@ class PlanDetailScreen extends ConsumerWidget {
                             color: TromblColors.textSub, fontSize: 14)),
                   ],
                   const SizedBox(height: 28),
-                  // Share code — only for owners
+                  // Share code + cancel — only for owners
                   if (isOwner) ...[
                     _ShareCodeRow(token: plan.shareToken, accent: accent),
+                    const SizedBox(height: 16),
+                    _CancelPlanButton(planId: planId),
                     const SizedBox(height: 24),
                   ],
                   // RSVP row — only for non-owners
@@ -338,6 +376,44 @@ class _ShareCodeRow extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _CancelPlanButton extends ConsumerWidget {
+  const _CancelPlanButton({required this.planId});
+  final String planId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(cancelPlanProvider);
+    final loading = state is AsyncLoading;
+
+    return GestureDetector(
+      onTap: loading
+          ? null
+          : () async {
+              final confirmed = await _confirmCancel(context);
+              if (!confirmed || !context.mounted) return;
+              final err =
+                  await ref.read(cancelPlanProvider.notifier).cancel(planId);
+              if (!context.mounted) return;
+              if (err != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(err)),
+                );
+              } else {
+                context.go('/menu');
+              }
+            },
+      child: Text(
+        loading ? 'cancelling…' : 'cancel plan →',
+        style: TextStyle(
+          color: loading ? TromblColors.textMuted : TromblColors.fomo,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

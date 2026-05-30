@@ -91,6 +91,15 @@ class PlanRepository {
     }
   }
 
+  Future<Result<void>> deletePlan(String planId) async {
+    try {
+      await _client.from('plans').delete().eq('id', planId).eq('owner_id', _uid);
+      return const Success(null);
+    } catch (_) {
+      return const Failure("couldn't cancel the plan. try again?");
+    }
+  }
+
   Future<List<PlanMember>> membersFor(String planId) async {
     try {
       final rows = await _client

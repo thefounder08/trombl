@@ -81,3 +81,34 @@ class RsvpNotifier extends AutoDisposeFamilyNotifier<AsyncValue<String?>, String
 final rsvpProvider =
     NotifierProvider.autoDispose.family<RsvpNotifier, AsyncValue<String?>, String>(
         RsvpNotifier.new);
+
+// ── Cancel plan (owner only) ─────────────────────────────────────────────────
+
+class CancelPlanNotifier extends AutoDisposeNotifier<AsyncValue<void>> {
+  @override
+  AsyncValue<void> build() => const AsyncValue.data(null);
+
+  Future<String?> cancel(String planId) async {
+    state = const AsyncValue.loading();
+    final result = await ref.read(planRepositoryProvider).deletePlan(planId);
+    return switch (result) {
+      Success() => _done(),
+      Failure(:final error) => _fail(error),
+    };
+  }
+
+  String? _done() {
+    state = const AsyncValue.data(null);
+    ref.invalidate(myPlansProvider);
+    return null;
+  }
+
+  String? _fail(String error) {
+    state = AsyncValue.error(error, StackTrace.empty);
+    return error;
+  }
+}
+
+final cancelPlanProvider =
+    NotifierProvider.autoDispose<CancelPlanNotifier, AsyncValue<void>>(
+        CancelPlanNotifier.new);
