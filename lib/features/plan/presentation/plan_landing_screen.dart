@@ -6,17 +6,73 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../core/providers.dart';
 import '../../../shared/result.dart';
-import '../domain/plan_models.dart';
+import '../data/plan_repository.dart';
 import '../providers/plan_providers.dart';
 
-/// Public route `/p/:token` — shown without requiring auth.
-///
-/// Flow:
-///  - Fetches the plan by token on mount.
-///  - Shows owner name + vibe pill + plan title.
-///  - "i'm in" / "can't tonight" CTAs.
-///  - Logged-out: routes to /login with token stored so we return here.
-///  - Logged-in: writes plan_members row + shows confirmation.
+// ─── Static label → human invitation copy ────────────────────────────────────
+//
+// Maps raw menu-option labels (which owners may not edit) to natural language
+// so strangers reading the invite understand the plan immediately.
+// Unmapped titles pass through as-is — the owner probably wrote something custom.
+
+String _toInvitationTitle(String raw) {
+  const map = <String, String>{
+    // go out
+    'rooftop or house party':                    "rooftop or house party tonight",
+    'live music or gig':                         "there's live music tonight",
+    'bar hop with the crew':                     "bar hopping tonight",
+    'club / dance floor':                        "dance floor tonight",
+    // make plans
+    'text the group chat rn':                    "we're going out tonight",
+    'reach out to that one person':              "let's actually hang",
+    "game night at someone's place":             "game night is happening",
+    'find something random and drag everyone':   "something random tonight",
+    // treat urself
+    'do something the future-you will remember': "doing something worth remembering",
+    'fancy dinner, main character era':          "fancy dinner tonight",
+    'book a concert or show':                   "we got tickets",
+    'get ur hair or nails done':                "self-care day",
+    // make/post
+    'instagram post or story':                  "making content today",
+    'shoot a reel or vlog':                     "vlog day",
+    'drop a new spotify playlist':              "making a new playlist",
+    'post ur honest opinion on something':      "dropping an opinion",
+    // move ur body
+    'gym session — actually go':                "gym session — actually going",
+    'group fitness class (pilates, boxing)':    "fitness class together",
+    'look up outdoor things happening today':   "something outdoors today",
+    'hike or trail':                            "hiking today",
+    // jomo: rot
+    'binge netflix or youtube':                 "netflix night",
+    'rewatch ur comfort show':                  "comfort show night",
+    'sleep in or nap aggressively':             "aggressive nap session",
+    'do absolutely nothing':                    "doing absolutely nothing",
+    // food
+    'ur usual from that one place':             "ordering in tonight",
+    'full snack spread, no actual meals':       "full snack spread",
+    'bake something (therapeutic fr)':          "baking something",
+    'make a fancy coffee and sit with it':      "fancy coffee and chill",
+    // soft recharge
+    'do a full face mask and decompress':       "face mask night",
+    'journal or full brain dump':               "brain dump session",
+    'long shower or bath — full ritual':        "full bath ritual",
+    'clean and organise ur space':              "cleaning the space",
+    // get in ur head
+    'write down everything on ur mind':         "brain dump session",
+    'vision board ur next 6 months':            "vision boarding",
+    'reflect on the last month honestly':       "monthly reflection",
+    'write a letter to ur future self':         "writing to future me",
+    // music
+    'full album, front to back':                "full album session",
+    'build a new playlist from scratch':        "building a new playlist",
+    'find a completely new artist':             "discovering new music",
+    'podcast deep dive on something random':    "podcast deep dive",
+  };
+  return map[raw.toLowerCase().trim()] ?? raw;
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 class PlanLandingScreen extends ConsumerStatefulWidget {
   const PlanLandingScreen({super.key, required this.token});
   final String token;
@@ -26,29 +82,30 @@ class PlanLandingScreen extends ConsumerStatefulWidget {
 }
 
 class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
-  Plan? _plan;
-  bool _loading = true;
-  String? _error;
+  LandingData? _data;
+  bool _fetching = true;
+  bool _notFound = false;
+  bool _responding = false;
   bool _confirmed = false;
-  String? _confirmedStatus; // "in" | "out"
+  String? _confirmedStatus;
 
   @override
   void initState() {
     super.initState();
-    _fetchPlan();
+    _fetch();
   }
 
-  Future<void> _fetchPlan() async {
+  Future<void> _fetch() async {
     final result =
-        await ref.read(featurePlanRepoProvider).fetchByToken(widget.token);
+        await ref.read(featurePlanRepoProvider).fetchLandingData(widget.token);
     if (!mounted) return;
     setState(() {
-      _loading = false;
+      _fetching = false;
       switch (result) {
         case Success(:final data):
-          _plan = data;
-        case Failure(:final error):
-          _error = error;
+          _data = data;
+        case Failure():
+          _notFound = true;
       }
     });
   }
@@ -58,20 +115,19 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
     final loggedIn = ref.read(currentUserProvider) != null;
 
     if (!loggedIn) {
-      // Remember which plan they were joining so login can return them here.
       ref.read(pendingPlanTokenProvider.notifier).state = widget.token;
       context.go('/login');
       return;
     }
 
-    final plan = _plan;
+    final plan = _data?.plan;
     if (plan == null) return;
 
-    setState(() => _loading = true);
+    setState(() => _responding = true);
     final result =
         await ref.read(featurePlanRepoProvider).joinPlan(plan.id, status);
     if (!mounted) return;
-    setState(() => _loading = false);
+    setState(() => _responding = false);
 
     switch (result) {
       case Success():
@@ -91,246 +147,35 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
     return Scaffold(
       backgroundColor: TromblColors.bg,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 26),
-          child: _loading
-              ? const Center(
-                  child: _PulsingText('trom is loading this...'),
-                )
-              : _error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            _error!,
-                            style: const TextStyle(
-                              fontFamily: TromblText.sans,
-                              color: TromblColors.textSub,
-                              fontSize: 15,
-                              height: 1.4,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          GestureDetector(
-                            onTap: () => context.go('/login'),
-                            child: const Text(
-                              'open trombl →',
-                              style: TextStyle(
-                                fontFamily: TromblText.sans,
-                                color: TromblColors.jomo,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+        child: _fetching
+            ? const _PulsingTrom()
+            : _notFound
+                ? const _NotFound()
+                : _confirmed
+                    ? _ConfirmedView(status: _confirmedStatus!)
+                    : _PlanView(
+                        data: _data!,
+                        responding: _responding,
+                        onRespond: _respond,
                       ),
-                    )
-                  : _confirmed
-                      ? _ConfirmedView(status: _confirmedStatus!)
-                      : _PlanView(plan: _plan!, onRespond: _respond),
-        ),
       ),
     );
   }
 }
 
-// ─── Plan view (before responding) ───────────────────────────────────────────
+// ─── Loading ──────────────────────────────────────────────────────────────────
 
-class _PlanView extends StatelessWidget {
-  const _PlanView({required this.plan, required this.onRespond});
-  final Plan plan;
-  final void Function(String status) onRespond;
+class _PulsingTrom extends StatefulWidget {
+  const _PulsingTrom();
 
   @override
-  Widget build(BuildContext context) {
-    final accent = TromblColors.accentFor(plan.vibe);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Spacer(),
-
-        // Vibe pill
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: accent.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: accent.withValues(alpha: 0.3)),
-          ),
-          child: Text(
-            plan.vibe == 'fomo' ? '⚡ fomo' : '🛌 jomo',
-            style: TextStyle(
-              fontFamily: TromblText.sans,
-              color: accent,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Plan title
-        Text(
-          plan.title,
-          style: const TextStyle(
-            fontFamily: TromblText.serif,
-            fontSize: 32,
-            fontWeight: FontWeight.w700,
-            color: TromblColors.text,
-            height: 1.15,
-            letterSpacing: -0.5,
-          ),
-        ),
-
-        if (plan.detail != null && plan.detail!.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Text(
-            plan.detail!,
-            style: const TextStyle(
-              fontFamily: TromblText.sans,
-              color: TromblColors.textSub,
-              fontSize: 14,
-              height: 1.4,
-            ),
-          ),
-        ],
-
-        const Spacer(),
-
-        // CTAs
-        _Cta(
-          label: "i'm in",
-          primary: true,
-          accent: accent,
-          onTap: () => onRespond('in'),
-        ),
-        const SizedBox(height: 12),
-        _Cta(
-          label: "can't tonight",
-          primary: false,
-          accent: accent,
-          onTap: () => onRespond('out'),
-        ),
-        const SizedBox(height: 28),
-      ],
-    );
-  }
+  State<_PulsingTrom> createState() => _PulsingTromState();
 }
 
-// ─── Confirmed view ───────────────────────────────────────────────────────────
-
-class _ConfirmedView extends StatelessWidget {
-  const _ConfirmedView({required this.status});
-  final String status;
-
-  @override
-  Widget build(BuildContext context) {
-    final isIn = status == 'in';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Spacer(),
-        Text(
-          isIn
-              ? "u're in. trom's got this."
-              : "maybe next time. trom filed it.",
-          style: const TextStyle(
-            fontFamily: TromblText.serif,
-            fontSize: 30,
-            fontWeight: FontWeight.w700,
-            color: TromblColors.text,
-            height: 1.2,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const Spacer(),
-        GestureDetector(
-          onTap: () => context.go('/menu'),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: TromblColors.card,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: TromblColors.border),
-            ),
-            child: const Text(
-              'open trombl',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: TromblText.sans,
-                color: TromblColors.textSub,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 28),
-      ],
-    );
-  }
-}
-
-// ─── Shared widgets ───────────────────────────────────────────────────────────
-
-class _Cta extends StatelessWidget {
-  const _Cta({
-    required this.label,
-    required this.primary,
-    required this.accent,
-    required this.onTap,
-  });
-  final String label;
-  final bool primary;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 17),
-        decoration: BoxDecoration(
-          color: primary ? accent : TromblColors.card,
-          borderRadius: BorderRadius.circular(16),
-          border: primary
-              ? null
-              : Border.all(color: TromblColors.border),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: TromblText.sans,
-            color: primary ? const Color(0xFF090909) : TromblColors.textSub,
-            fontWeight: FontWeight.w800,
-            fontSize: 15,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PulsingText extends StatefulWidget {
-  const _PulsingText(this.text);
-  final String text;
-
-  @override
-  State<_PulsingText> createState() => _PulsingTextState();
-}
-
-class _PulsingTextState extends State<_PulsingText>
+class _PulsingTromState extends State<_PulsingTrom>
     with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
 
   @override
   void initState() {
@@ -338,9 +183,8 @@ class _PulsingTextState extends State<_PulsingText>
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 900))
       ..repeat(reverse: true);
-    _anim = Tween(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+    _anim = Tween(begin: 0.3, end: 1.0)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -350,16 +194,438 @@ class _PulsingTextState extends State<_PulsingText>
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: _anim,
-        builder: (_, __) => Opacity(
-          opacity: _anim.value,
+  Widget build(BuildContext context) => Center(
+        child: AnimatedBuilder(
+          animation: _anim,
+          builder: (_, __) => Opacity(
+            opacity: _anim.value,
+            child: const Text(
+              'trom.',
+              style: TextStyle(
+                fontFamily: TromblText.serif,
+                fontSize: 32,
+                fontWeight: FontWeight.w700,
+                color: TromblColors.text,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+// ─── Not found ────────────────────────────────────────────────────────────────
+
+class _NotFound extends StatelessWidget {
+  const _NotFound();
+
+  @override
+  Widget build(BuildContext context) => const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
           child: Text(
-            widget.text,
+            "this plan's gone quiet.\nask ur friend for a fresh link.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: TromblText.serif,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: TromblColors.textSub,
+              height: 1.3,
+            ),
+          ),
+        ),
+      );
+}
+
+// ─── Confirmed ────────────────────────────────────────────────────────────────
+
+class _ConfirmedView extends StatelessWidget {
+  const _ConfirmedView({required this.status});
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final isIn = status == 'in';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(26, 0, 26, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Spacer(),
+          Text(
+            isIn
+                ? "u're in.\ntrom's got this. 🔥"
+                : "trom respects it.\nnext time.",
             style: const TextStyle(
-              fontFamily: TromblText.sans,
-              color: TromblColors.textMuted,
-              fontSize: 15,
+              fontFamily: TromblText.serif,
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: TromblColors.text,
+              height: 1.15,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: () => context.go('/menu'),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: TromblColors.card,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: TromblColors.border),
+              ),
+              child: const Text(
+                'open trombl',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: TromblColors.textSub,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Main plan view ───────────────────────────────────────────────────────────
+
+class _PlanView extends StatelessWidget {
+  const _PlanView({
+    required this.data,
+    required this.responding,
+    required this.onRespond,
+  });
+  final LandingData data;
+  final bool responding;
+  final void Function(String) onRespond;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = TromblColors.accentFor(data.plan.vibe);
+    final inviter = data.ownerName ?? 'someone';
+    final headline = _toInvitationTitle(data.plan.title);
+    final detail = data.plan.detail?.trim();
+
+    return Column(
+      children: [
+        // ── Scrollable content ──────────────────────────────────────────────
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(26, 44, 26, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Inviter
+                _InviterRow(name: inviter, vibe: data.plan.vibe),
+                const SizedBox(height: 32),
+
+                // 2. Vibe pill
+                _VibePill(vibe: data.plan.vibe, accent: accent),
+                const SizedBox(height: 14),
+
+                // 3. Headline
+                Text(
+                  headline,
+                  style: const TextStyle(
+                    fontFamily: TromblText.serif,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w700,
+                    color: TromblColors.text,
+                    height: 1.15,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                if (detail != null && detail.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    detail,
+                    style: const TextStyle(
+                      color: TromblColors.textSub,
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+
+                // 4. Context line
+                const SizedBox(height: 22),
+                const Text(
+                  "trombl helps u + ur friends actually decide what to do. no more 'idk u pick.'",
+                  style: TextStyle(
+                    color: TromblColors.textMuted,
+                    fontSize: 12,
+                    height: 1.55,
+                  ),
+                ),
+
+                // 5. Social proof — only when at least one member is in
+                if (data.memberCount > 0) ...[
+                  const SizedBox(height: 22),
+                  _SocialProof(
+                    memberCount: data.memberCount,
+                    memberInitials: data.memberInitials,
+                    memberNames: data.memberNames,
+                    accent: accent,
+                  ),
+                ],
+
+                const SizedBox(height: 36),
+              ],
+            ),
+          ),
+        ),
+
+        // ── Sticky CTAs ─────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(26, 0, 26, 0),
+          child: Column(
+            children: [
+              _CtaButton(
+                label: responding ? 'one sec…' : "i'm in",
+                primary: true,
+                accent: accent,
+                onTap: responding ? null : () => onRespond('in'),
+              ),
+              const SizedBox(height: 10),
+              _CtaButton(
+                label: responding ? 'one sec…' : "can't tonight",
+                primary: false,
+                accent: accent,
+                onTap: responding ? null : () => onRespond('out'),
+              ),
+            ],
+          ),
+        ),
+
+        // ── Footer ──────────────────────────────────────────────────────────
+        const SizedBox(height: 14),
+        const Text(
+          'made with trombl · trombl.com',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: TromblColors.textMuted, fontSize: 11),
+        ),
+        const SizedBox(height: 22),
+      ],
+    );
+  }
+}
+
+// ─── Inviter row ──────────────────────────────────────────────────────────────
+
+class _InviterRow extends StatelessWidget {
+  const _InviterRow({required this.name, required this.vibe});
+  final String name;
+  final String vibe;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final isFomo = vibe == 'fomo';
+    return Row(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: isFomo
+                  ? [TromblColors.fomo, const Color(0xFFE07800)]
+                  : [TromblColors.jomo, const Color(0xFF8B74D9)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: Color(0xFF0B0B0D),
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(
+                fontFamily: TromblText.sans,
+                fontSize: 15,
+                color: TromblColors.text,
+                height: 1.3,
+              ),
+              children: [
+                TextSpan(
+                  text: name,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const TextSpan(
+                  text: ' wants you in',
+                  style: TextStyle(
+                    color: TromblColors.textSub,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Vibe pill ────────────────────────────────────────────────────────────────
+
+class _VibePill extends StatelessWidget {
+  const _VibePill({required this.vibe, required this.accent});
+  final String vibe;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accent.withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          vibe == 'fomo' ? '⚡ fomo' : '🛌 jomo',
+          style: TextStyle(
+            color: accent,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
+        ),
+      );
+}
+
+// ─── Social proof ─────────────────────────────────────────────────────────────
+
+class _SocialProof extends StatelessWidget {
+  const _SocialProof({
+    required this.memberCount,
+    required this.memberInitials,
+    required this.memberNames,
+    required this.accent,
+  });
+  final int memberCount;
+  final List<String> memberInitials;
+  final List<String> memberNames;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final String label;
+    if (memberNames.isNotEmpty) {
+      final rest = memberCount - 1;
+      label = rest > 0
+          ? '${memberNames.first} + $rest already in'
+          : '${memberNames.first} already in';
+    } else {
+      label = '$memberCount already in';
+    }
+
+    final avatarCount = memberInitials.length.clamp(0, 4);
+    final stackWidth = avatarCount > 0 ? (avatarCount * 20.0) + 8.0 : 0.0;
+
+    return Row(
+      children: [
+        if (avatarCount > 0)
+          SizedBox(
+            height: 28,
+            width: stackWidth,
+            child: Stack(
+              children: [
+                for (var i = 0; i < avatarCount; i++)
+                  Positioned(
+                    left: i * 20.0,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accent.withValues(alpha: 0.22),
+                        border: Border.all(color: TromblColors.bg, width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          memberInitials[i],
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (avatarCount > 0) const SizedBox(width: 10),
+        Text(
+          label,
+          style: const TextStyle(
+            color: TromblColors.textSub,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── CTA button ───────────────────────────────────────────────────────────────
+
+class _CtaButton extends StatelessWidget {
+  const _CtaButton({
+    required this.label,
+    required this.primary,
+    required this.accent,
+    this.onTap,
+  });
+  final String label;
+  final bool primary;
+  final Color accent;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: onTap == null ? 0.5 : 1.0,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 17),
+            decoration: BoxDecoration(
+              color: primary ? accent : TromblColors.card,
+              borderRadius: BorderRadius.circular(16),
+              border: primary ? null : Border.all(color: TromblColors.border),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color:
+                    primary ? const Color(0xFF090909) : TromblColors.textSub,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
             ),
           ),
         ),
