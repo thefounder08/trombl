@@ -185,12 +185,10 @@ class ResponseScreen extends ConsumerWidget {
                             // For squad tag — after WhatsApp launches, offer to
                             // store the plan and share the link too.
                             if (args.tag == 'squad' && context.mounted) {
-                              final reactionText = reaction.valueOrNull;
                               context.push('/create-plan',
                                   extra: CreatePlanArgs(
                                     vibe: args.vibe,
                                     optionLabel: args.optionLabel,
-                                    reactionText: reactionText,
                                   ));
                             }
                         }
@@ -212,7 +210,6 @@ class ResponseScreen extends ConsumerWidget {
                                 extra: CreatePlanArgs(
                                   vibe: args.vibe,
                                   optionLabel: args.optionLabel,
-                                  reactionText: text,
                                 ));
                           },
                         ),

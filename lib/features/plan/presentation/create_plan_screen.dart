@@ -6,25 +6,66 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/result.dart';
+import '../domain/plan_phrasing.dart';
 import '../providers/plan_providers.dart';
 
-/// Args passed via GoRouter extra when navigating to /create-plan.
+/// Args passed via GoRouter's `extra` when navigating to /create-plan.
 class CreatePlanArgs {
   const CreatePlanArgs({
     required this.vibe,
     required this.optionLabel,
-    this.reactionText,
   });
   final String vibe;
   final String optionLabel;
-  final String? reactionText; // pre-fills the plan detail from LLM reaction
 }
 
-/// Full-screen create-plan flow — accessible from response screen when
-/// a squad-tagged option is picked.
-///
-/// Pre-fills title from option label. Generates share URL and opens the
-/// system share sheet on confirm.
+// ─── Time-chip helpers ────────────────────────────────────────────────────────
+
+const _kChips = [
+  (value: 'tonight',  label: 'tonight'),
+  (value: 'tomorrow', label: 'tomorrow'),
+  (value: 'weekend',  label: 'this weekend'),
+  (value: 'custom',   label: 'pick a time'),
+];
+
+DateTime _chipDateTime(String chip) {
+  final now = DateTime.now();
+  switch (chip) {
+    case 'tonight':
+      return DateTime(now.year, now.month, now.day, 20, 0);
+    case 'tomorrow':
+      final tm = now.add(const Duration(days: 1));
+      return DateTime(tm.year, tm.month, tm.day, 20, 0);
+    case 'weekend':
+      final diff = (6 - now.weekday) % 7;
+      final sat = now.add(Duration(days: diff == 0 ? 7 : diff));
+      return DateTime(sat.year, sat.month, sat.day, 20, 0);
+    default:
+      return now;
+  }
+}
+
+String _formatTime(DateTime dt) {
+  final hour = dt.hour;
+  final min  = dt.minute;
+  final amPm = hour >= 12 ? 'PM' : 'AM';
+  final h    = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+  return min == 0 ? '$h $amPm' : '$h:${min.toString().padLeft(2, '0')} $amPm';
+}
+
+String _chipTimeLabel(String chip, DateTime dt) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  final t = _formatTime(dt);
+  switch (chip) {
+    case 'tonight':  return 'tonight · $t';
+    case 'tomorrow': return 'tomorrow · $t';
+    case 'weekend':  return '${days[dt.weekday - 1]} · $t';
+    default:         return '${days[dt.weekday - 1]} · $t';
+  }
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 class CreatePlanScreen extends ConsumerStatefulWidget {
   const CreatePlanScreen({super.key, required this.args});
   final CreatePlanArgs args;
@@ -36,15 +77,23 @@ class CreatePlanScreen extends ConsumerStatefulWidget {
 class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _detailCtrl;
-  bool _loading = false;
+
+  bool    _loading     = false;
   String? _shareUrl;
+  String? _planId;
+
+  // Time selection — stored locally; persisted to starts_at once the
+  // DB migration (alter table plans add column starts_at timestamptz) is applied.
+  String?   _selectedChip;
+  DateTime? _startsAt;
 
   @override
   void initState() {
     super.initState();
-    _titleCtrl = TextEditingController(text: widget.args.optionLabel);
-    _detailCtrl =
-        TextEditingController(text: widget.args.reactionText ?? '');
+    // BUG FIX: title uses human phrasing, NOT the raw menu-option label.
+    // BUG FIX: detail always starts empty — never pre-fill with LLM output.
+    _titleCtrl  = TextEditingController(text: planPhrasing(widget.args.optionLabel));
+    _detailCtrl = TextEditingController();
   }
 
   @override
@@ -54,36 +103,107 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
     super.dispose();
   }
 
+  // ── Time chip handling ─────────────────────────────────────────────────────
+
+  void _onChipTap(String chip) async {
+    if (_selectedChip == chip && chip != 'custom') {
+      // Deselect
+      setState(() { _selectedChip = null; _startsAt = null; });
+      return;
+    }
+    if (chip == 'custom') {
+      await _pickCustomTime();
+    } else {
+      setState(() {
+        _selectedChip = chip;
+        _startsAt     = _chipDateTime(chip);
+      });
+    }
+  }
+
+  Future<void> _pickCustomTime() async {
+    final now  = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 90)),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary:   TromblColors.jomo,
+            surface:   TromblColors.card,
+            onSurface: TromblColors.text,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 20, minute: 0),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary:   TromblColors.jomo,
+            surface:   TromblColors.card,
+            onSurface: TromblColors.text,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (time == null || !mounted) return;
+    setState(() {
+      _selectedChip = 'custom';
+      _startsAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    });
+  }
+
+  // ── Create ─────────────────────────────────────────────────────────────────
+
   Future<void> _create() async {
-    final title = _titleCtrl.text.trim();
+    final title  = _titleCtrl.text.trim();
+    final detail = _detailCtrl.text.trim();
     if (title.isEmpty) return;
+
     HapticFeedback.mediumImpact();
     setState(() => _loading = true);
 
     final result = await ref.read(featurePlanRepoProvider).createPlan(
-          vibe: widget.args.vibe,
-          title: title,
-          detail: _detailCtrl.text.trim().isEmpty ? null : _detailCtrl.text.trim(),
-        );
+      vibe:   widget.args.vibe,
+      title:  title,
+      detail: detail.isEmpty ? null : detail,
+      // TODO: add startsAt: _startsAt once the DB migration is applied:
+      //   alter table public.plans add column starts_at timestamptz;
+      //   alter table public.plans add column expires_at timestamptz;
+    );
 
     if (!mounted) return;
     setState(() => _loading = false);
 
     switch (result) {
       case Success(:final data):
-        final shareUrl = data.shareUrl;
-        setState(() => _shareUrl = shareUrl);
-        // Open system share sheet immediately
+        setState(() {
+          _shareUrl = data.shareUrl;
+          _planId   = data.plan.id;
+        });
+        // Open share sheet immediately with human title + trombl link.
         await Share.share(
-          "trom says we should do this.\n\n${data.plan.title}\n\n$shareUrl",
+          "trom says we should do this.\n\n${data.plan.title}\n\n${data.shareUrl}",
           subject: data.plan.title,
         );
       case Failure(:final error):
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
+          );
+        }
     }
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -92,16 +212,13 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Back
               GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  context.go('/menu');
-                },
+                onTap: () { HapticFeedback.lightImpact(); context.go('/menu'); },
                 child: const Text(
                   '← back',
                   style: TextStyle(
@@ -137,35 +254,79 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
               ),
               const SizedBox(height: 28),
 
-              // Title field
-              const _Label('WHAT\'S THE PLAN'),
-              const SizedBox(height: 8),
-              _Field(
-                controller: _titleCtrl,
-                hint: 'give it a name',
-                maxLines: 1,
-              ),
-              const SizedBox(height: 16),
+              if (_shareUrl == null) ...[
+                // ── Create form ────────────────────────────────────────────
 
-              // Detail field (pre-filled from LLM reaction)
-              const _Label('DETAILS (OPTIONAL)'),
-              const SizedBox(height: 8),
-              _Field(
-                controller: _detailCtrl,
-                hint: 'any extra context...',
-                maxLines: 3,
-              ),
-              const SizedBox(height: 32),
+                // Title
+                const _FieldLabel('WHAT\'S THE PLAN'),
+                const SizedBox(height: 8),
+                _Field(
+                  controller: _titleCtrl,
+                  hint: 'what are we doing?',
+                  maxLines: 1,
+                  accent: accent,
+                ),
+                const SizedBox(height: 20),
 
-              // Share URL banner (shown after plan is created)
-              if (_shareUrl != null) ...[
+                // When chips
+                const _FieldLabel('WHEN? (OPTIONAL)'),
+                const SizedBox(height: 10),
+                _TimeChips(
+                  selected: _selectedChip,
+                  startsAt: _startsAt,
+                  accent: accent,
+                  onTap: _onChipTap,
+                ),
+                const SizedBox(height: 20),
+
+                // Detail
+                const _FieldLabel('DETAILS (OPTIONAL)'),
+                const SizedBox(height: 8),
+                _Field(
+                  controller: _detailCtrl,
+                  hint: 'add a time, place, or vibe...',
+                  maxLines: 3,
+                  accent: accent,
+                ),
+                const SizedBox(height: 32),
+
+                // Primary CTA
+                GestureDetector(
+                  onTap: _loading ? null : _create,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 150),
+                    opacity: _loading ? 0.6 : 1.0,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 17),
+                      decoration: BoxDecoration(
+                        color: _loading ? TromblColors.card : accent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        _loading ? 'trom is making it...' : 'create + share →',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: TromblText.sans,
+                          color: _loading
+                              ? TromblColors.textMuted
+                              : const Color(0xFF090909),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                // ── Post-creation ──────────────────────────────────────────
+
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: TromblColors.cardLit,
                     borderRadius: BorderRadius.circular(14),
-                    border:
-                        Border.all(color: accent.withValues(alpha: 0.2)),
+                    border: Border.all(color: accent.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,83 +353,35 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Re-share button
-                GestureDetector(
+
+                // Re-share
+                _ShareButton(
+                  label: 'share again 🔗',
                   onTap: () async {
                     HapticFeedback.lightImpact();
-                    await Share.share(_shareUrl!);
+                    await Share.share(
+                      "trom says we should do this.\n\n${_titleCtrl.text.trim()}\n\n$_shareUrl",
+                    );
                   },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    decoration: BoxDecoration(
-                      color: TromblColors.card,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: TromblColors.border),
-                    ),
-                    child: const Text(
-                      'share again 🔗',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: TromblText.sans,
-                        color: TromblColors.textSub,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 10),
-                GestureDetector(
+
+                // View plan
+                if (_planId != null)
+                  _ShareButton(
+                    label: 'view plan →',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/plan/$_planId');
+                    },
+                  ),
+                const SizedBox(height: 10),
+
+                _ShareButton(
+                  label: 'back to menu',
                   onTap: () => context.go('/menu'),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    decoration: BoxDecoration(
-                      color: TromblColors.card,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: TromblColors.border),
-                    ),
-                    child: const Text(
-                      'back to menu',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: TromblText.sans,
-                        color: TromblColors.textSub,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ] else ...[
-                // Create button
-                GestureDetector(
-                  onTap: _loading ? null : _create,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 17),
-                    decoration: BoxDecoration(
-                      color: _loading ? TromblColors.card : accent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      _loading ? 'trom is making it...' : 'create + share →',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: TromblText.sans,
-                        color: _loading
-                            ? TromblColors.textMuted
-                            : const Color(0xFF090909),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
                 ),
               ],
-
-              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -277,8 +390,69 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
   }
 }
 
-class _Label extends StatelessWidget {
-  const _Label(this.text);
+// ─── Time chips widget ────────────────────────────────────────────────────────
+
+class _TimeChips extends StatelessWidget {
+  const _TimeChips({
+    required this.selected,
+    required this.startsAt,
+    required this.accent,
+    required this.onTap,
+  });
+  final String?   selected;
+  final DateTime? startsAt;
+  final Color     accent;
+  final void Function(String) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _kChips.map((chip) {
+        final isSelected = selected == chip.value;
+        final label = (isSelected && startsAt != null && chip.value != 'custom')
+            ? _chipTimeLabel(chip.value, startsAt!)
+            : (isSelected && startsAt != null && chip.value == 'custom')
+                ? _chipTimeLabel('custom', startsAt!)
+                : chip.label;
+
+        return GestureDetector(
+          onTap: () => onTap(chip.value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? accent.withValues(alpha: 0.14)
+                  : TromblColors.card,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isSelected
+                    ? accent.withValues(alpha: 0.5)
+                    : TromblColors.border,
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: TromblText.sans,
+                color: isSelected ? accent : TromblColors.textSub,
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ─── Shared small widgets ─────────────────────────────────────────────────────
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
   final String text;
 
   @override
@@ -295,10 +469,16 @@ class _Label extends StatelessWidget {
 }
 
 class _Field extends StatelessWidget {
-  const _Field({required this.controller, required this.hint, this.maxLines = 1});
+  const _Field({
+    required this.controller,
+    required this.hint,
+    required this.accent,
+    this.maxLines = 1,
+  });
   final TextEditingController controller;
   final String hint;
-  final int maxLines;
+  final Color  accent;
+  final int    maxLines;
 
   @override
   Widget build(BuildContext context) => TextField(
@@ -321,8 +501,42 @@ class _Field extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: accent.withValues(alpha: 0.4)),
+          ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+      );
+}
+
+class _ShareButton extends StatelessWidget {
+  const _ShareButton({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          decoration: BoxDecoration(
+            color: TromblColors.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: TromblColors.border),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: TromblText.sans,
+              color: TromblColors.textSub,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
         ),
       );
 }
