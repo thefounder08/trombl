@@ -14,7 +14,8 @@ class FeaturePlanRepository {
   final SupabaseClient _client;
 
   bool get _isSignedIn => _client.auth.currentUser != null;
-  String get _uid => _client.auth.currentUser!.id;
+  String get _uid =>
+      _client.auth.currentUser?.id ?? (throw StateError('not authenticated'));
 
   /// Creates a plan and returns the plan plus the shareable URL.
   Future<Result<({Plan plan, String shareUrl})>> createPlan({

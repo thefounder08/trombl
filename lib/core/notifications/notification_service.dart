@@ -52,18 +52,25 @@ class NotificationService {
       requestSoundPermission: false,
     );
 
-    await _localPlugin.initialize(
-      const InitializationSettings(
-        android: androidSettings,
-        iOS: darwinSettings,
-      ),
-    );
+    try {
+      await _localPlugin.initialize(
+        const InitializationSettings(
+          android: androidSettings,
+          iOS: darwinSettings,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Notification] local plugin init skipped: $e');
+    }
 
-    // Wire Firebase background handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    // Show FCM messages in foreground as local notifications
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    // Wire Firebase background handler — safe-guarded so web/unconfigured
+    // Firebase environments don't crash before runApp() is called.
+    try {
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    } catch (e) {
+      debugPrint('[Notification] Firebase Messaging not available: $e');
+    }
 
     _initialised = true;
   }

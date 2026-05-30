@@ -43,7 +43,11 @@ Future<void> _boot() async {
     debugPrint('[Firebase] init skipped (no config files yet): $e');
   }
 
-  await NotificationService().init();
+  try {
+    await NotificationService().init();
+  } catch (e) {
+    debugPrint('[Notification] init skipped: $e');
+  }
 
   runApp(const ProviderScope(child: TromblApp()));
 }

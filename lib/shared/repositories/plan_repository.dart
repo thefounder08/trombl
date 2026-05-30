@@ -7,7 +7,8 @@ class PlanRepository {
   PlanRepository(this._client);
   final SupabaseClient _client;
 
-  String get _uid => _client.auth.currentUser!.id;
+  String get _uid =>
+      _client.auth.currentUser?.id ?? (throw StateError('not authenticated'));
 
   Future<Result<Plan>> createPlan({
     required String vibe,

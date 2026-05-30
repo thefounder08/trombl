@@ -9,7 +9,8 @@ class SessionRepository {
   SessionRepository(this._client);
   final SupabaseClient _client;
 
-  String get _uid => _client.auth.currentUser!.id;
+  String get _uid =>
+      _client.auth.currentUser?.id ?? (throw StateError('not authenticated'));
 
   /// Start a new day session with a chosen vibe.
   Future<Result<Session>> startSession(String vibe, {String? city}) async {
@@ -75,14 +76,18 @@ class SessionRepository {
 
   /// Last [days] of sessions for the "trom's read on you" feature.
   Future<List<Session>> recentSessions({int days = 7}) async {
-    final since = DateTime.now().subtract(Duration(days: days));
-    final rows = await _client
-        .from('sessions')
-        .select()
-        .eq('user_id', _uid)
-        .gte('started_at', since.toIso8601String())
-        .order('started_at', ascending: false);
-    return (rows as List).map((r) => Session.fromJson(r)).toList();
+    try {
+      final since = DateTime.now().subtract(Duration(days: days));
+      final rows = await _client
+          .from('sessions')
+          .select()
+          .eq('user_id', _uid)
+          .gte('started_at', since.toIso8601String())
+          .order('started_at', ascending: false);
+      return (rows as List).map((r) => Session.fromJson(r)).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Returns today's unwrapped session if one exists, null otherwise.
@@ -127,12 +132,14 @@ class SessionRepository {
   }
 
   Future<void> updateProfile({String? displayName, String? handle, String? city}) async {
-    final data = <String, dynamic>{};
-    if (displayName != null) data['display_name'] = displayName;
-    if (handle != null) data['handle'] = handle;
-    if (city != null) data['city'] = city;
-    if (data.isEmpty) return;
-    await _client.from('profiles').upsert({'id': _uid, ...data});
+    try {
+      final data = <String, dynamic>{};
+      if (displayName != null) data['display_name'] = displayName;
+      if (handle != null) data['handle'] = handle;
+      if (city != null) data['city'] = city;
+      if (data.isEmpty) return;
+      await _client.from('profiles').upsert({'id': _uid, ...data});
+    } catch (_) {}
   }
 
   /// Save a memory node trom generated about the user.
