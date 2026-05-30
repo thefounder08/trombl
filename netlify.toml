@@ -2,15 +2,12 @@
 # Docs: https://docs.netlify.com/configure-builds/file-based-configuration/
 
 [build]
-  # Build from the Flutter app directory (adjust if repo root differs).
   base    = "."
   publish = "build/web"
-  # Flutter 3.22+ uses Wasm/Skwasm by default; --web-renderer was removed.
-  command = "flutter build web --release --base-href /"
+  command = "git clone https://github.com/flutter/flutter.git --branch $FLUTTER_VERSION --depth 1 $HOME/flutter && export PATH=$PATH:$HOME/flutter/bin && flutter pub get && flutter build web --release --base-href / --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
 
 [build.environment]
-  # Flutter version pinned — update when you upgrade.
-  FLUTTER_VERSION = "3.22.0"
+  FLUTTER_VERSION = "3.41.0"
 
 # SPA catch-all: every path serves index.html so GoRouter deep links work.
 [[redirects]]
