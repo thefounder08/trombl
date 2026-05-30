@@ -57,7 +57,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       // /p/:token is public — visible to unauthenticated users.
       final isPublic = loc.startsWith('/p/');
       if (!loggedIn && !onLogin && !isPublic) return '/login';
-      if (loggedIn && onLogin) return '/vibe';
+      if (loggedIn && onLogin) {
+        // Magic-link click lands here signed in — return to plan if one is pending.
+        final pendingToken = ref.read(pendingPlanTokenProvider);
+        if (pendingToken != null) {
+          ref.read(pendingPlanTokenProvider.notifier).state = null;
+          return '/p/$pendingToken';
+        }
+        return '/vibe';
+      }
       return null;
     },
     refreshListenable: _AuthRefresh(ref),

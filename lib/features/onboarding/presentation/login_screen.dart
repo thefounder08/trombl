@@ -12,6 +12,9 @@ import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../vibe/providers/session_providers.dart';
 
+// Web redirect URL — browser can't open io.trombl:// deep links.
+const _kWebRedirectUrl = 'https://trombl.netlify.app/login';
+
 class LoginScreen extends HookConsumerWidget {
   const LoginScreen({super.key});
 
@@ -37,7 +40,8 @@ class LoginScreen extends HookConsumerWidget {
       try {
         await ref.read(supabaseProvider).auth.signInWithOtp(
               email: raw,
-              emailRedirectTo: 'io.trombl://login-callback',
+              emailRedirectTo:
+                  kIsWeb ? _kWebRedirectUrl : 'io.trombl://login-callback',
             );
         sentEmail.value = raw;
         sent.value = true;
@@ -79,12 +83,17 @@ class LoginScreen extends HookConsumerWidget {
               type: OtpType.email,
             );
         HapticFeedback.heavyImpact();
-        // Check if this is a new user (no display name) → /setup, else router handles it
         if (context.mounted) {
           final profile = await ref.read(sessionRepositoryProvider).getProfile();
-          if (context.mounted && (profile?.displayName == null)) {
+          final pendingToken = ref.read(pendingPlanTokenProvider);
+          if (!context.mounted) return;
+          if (profile?.displayName == null) {
             context.go('/setup');
+          } else if (pendingToken != null) {
+            ref.read(pendingPlanTokenProvider.notifier).state = null;
+            context.go('/p/$pendingToken');
           }
+          // else: router's authStateProvider listener handles redirect to /vibe
         }
       } catch (e) {
         debugPrint('verifyOtp error: $e');
@@ -99,6 +108,8 @@ class LoginScreen extends HookConsumerWidget {
       }
     }
 
+    final joiningPlan = ref.watch(pendingPlanTokenProvider) != null;
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -110,7 +121,11 @@ class LoginScreen extends HookConsumerWidget {
               const Text('🔥', style: TextStyle(fontSize: 44), textAlign: TextAlign.center),
               const SizedBox(height: 24),
               Text(
-                sent.value ? 'check ur email.' : 'trom needs a name\nto yell at.',
+                sent.value
+                    ? 'check ur email.'
+                    : joiningPlan
+                        ? 'join the plan.\nwho r u?'
+                        : 'trom needs a name\nto yell at.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontFamily: TromblText.serif,

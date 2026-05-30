@@ -20,6 +20,10 @@ final currentUserProvider = Provider<User?>((ref) {
   return ref.watch(supabaseProvider).auth.currentUser;
 });
 
+/// Stores the plan share-token a user was viewing when they got sent to login.
+/// Cleared once the post-login navigation back to the plan has been triggered.
+final pendingPlanTokenProvider = StateProvider<String?>((_) => null);
+
 /// The LLM, exposed ONLY as the abstract interface.
 /// Concrete type (ProxyLlmProvider) is hidden from feature code.
 final llmProvider = Provider<LlmProvider>((ref) {

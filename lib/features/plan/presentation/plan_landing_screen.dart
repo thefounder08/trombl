@@ -58,11 +58,9 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
     final loggedIn = ref.read(currentUserProvider) != null;
 
     if (!loggedIn) {
-      // Save token to return after login — go to login with redirect hint.
-      // GoRouter doesn't support query params natively in extra; use the path.
+      // Remember which plan they were joining so login can return them here.
+      ref.read(pendingPlanTokenProvider.notifier).state = widget.token;
       context.go('/login');
-      // The user will need to navigate back to /p/:token after login.
-      // A proper deep-link redirect after auth requires OTP link config.
       return;
     }
 
