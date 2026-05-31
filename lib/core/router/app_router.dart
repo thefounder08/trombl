@@ -18,6 +18,7 @@ import '../../features/plan/presentation/plan_landing_screen.dart';
 import '../../features/plan/presentation/create_plan_screen.dart';
 import '../../features/plans/presentation/plan_detail_screen.dart';
 import '../../features/plans/presentation/join_plan_screen.dart';
+import '../../features/decide/presentation/decide_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 
 /// Shared fade+float page transition.
@@ -98,6 +99,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/response',
         pageBuilder: (_, s) =>
             _page(s.pageKey, ResponseScreen(args: s.extra! as ResponseArgs)),
+      ),
+      GoRoute(
+        path: '/decide',
+        pageBuilder: (_, s) => _page(s.pageKey, const DecideScreen()),
       ),
       GoRoute(
         path: '/dnd',

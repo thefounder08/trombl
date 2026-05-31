@@ -23,7 +23,7 @@ class VibeScreen extends ConsumerWidget {
       return;
     }
     AnalyticsService.vibePicked(vibe: vibe);
-    if (context.mounted) context.go('/menu');
+    if (context.mounted) context.go('/decide');
   }
 
   @override
