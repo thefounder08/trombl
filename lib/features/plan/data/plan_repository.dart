@@ -42,6 +42,13 @@ class FeaturePlanRepository {
           .select()
           .single();
       final plan = Plan.fromJson(row);
+      // Auto-add owner as 'in' member so they appear in the who's-in list.
+      await _client
+          .from('plan_members')
+          .upsert(
+            {'plan_id': plan.id, 'user_id': _uid, 'status': 'in'},
+            onConflict: 'plan_id,user_id',
+          );
       final shareUrl = 'https://trombl.netlify.app/p/${plan.shareToken}';
       return Success((plan: plan, shareUrl: shareUrl));
     } catch (_) {

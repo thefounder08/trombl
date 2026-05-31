@@ -21,7 +21,15 @@ class PlanRepository {
           .insert({'owner_id': _uid, 'vibe': vibe, 'title': title, if (detail != null) 'detail': detail})
           .select()
           .single();
-      return Success(Plan.fromJson(row));
+      final plan = Plan.fromJson(row);
+      // Auto-add owner as 'in' member so they appear in the who's-in list.
+      await _client
+          .from('plan_members')
+          .upsert(
+            {'plan_id': plan.id, 'user_id': _uid, 'status': 'in'},
+            onConflict: 'plan_id,user_id',
+          );
+      return Success(plan);
     } catch (_) {
       return const Failure("couldn't make the plan. try again?");
     }
