@@ -26,7 +26,7 @@ Future<bool> _confirmCancel(BuildContext context) async {
             ),
           ),
           content: const Text(
-            "this removes the plan for everyone. can't undo.",
+            "everyone in loses it. can't undo.",
             style: TextStyle(color: TromblColors.textSub, fontSize: 14),
           ),
           actions: [
@@ -37,9 +37,10 @@ Future<bool> _confirmCancel(BuildContext context) async {
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('cancel plan',
+              child: const Text('yeah, cancel',
                   style: TextStyle(
-                      color: TromblColors.fomo, fontWeight: FontWeight.w700)),
+                      color: TromblColors.textMuted,
+                      fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -53,14 +54,15 @@ class PlanDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final planAsync        = ref.watch(planDetailProvider(planId));
-    final membersAsync     = ref.watch(planMembersProvider(planId));
-    final myMemberAsync    = ref.watch(myMembershipProvider(planId));
+    final planAsync         = ref.watch(planDetailProvider(planId));
+    final membersAsync      = ref.watch(planMembersProvider(planId));
+    final myMemberAsync     = ref.watch(myMembershipProvider(planId));
     final ownerProfileAsync = ref.watch(planOwnerProfileProvider(planId));
-    final rsvpState        = ref.watch(rsvpProvider(planId));
+    final rsvpState         = ref.watch(rsvpProvider(planId));
     final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
 
     return Scaffold(
+      backgroundColor: TromblColors.bg,
       body: SafeArea(
         child: planAsync.when(
           loading: () => const Center(
@@ -78,29 +80,24 @@ class PlanDetailScreen extends ConsumerWidget {
               );
             }
 
-            final accent   = TromblColors.accentFor(plan.vibe);
-            final isOwner  = plan.ownerId == uid;
+            final accent    = TromblColors.accentFor(plan.vibe);
+            final isOwner   = plan.ownerId == uid;
             final timeLabel = formatStartTime(plan.startsAt);
 
-            // Owner name for attribution
+            // Non-owner attribution
             final ownerProfile = ownerProfileAsync.value;
             final ownerDisplayName =
                 ownerProfile?.displayName ??
                 (ownerProfile?.handle != null
                     ? '@${ownerProfile!.handle}'
                     : null);
-            final ownerLabel = isOwner
-                ? 'your plan'
-                : (ownerDisplayName != null
-                    ? "$ownerDisplayName's plan"
-                    : 'a plan');
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Back
+                  // ── Back ─────────────────────────────────────────────────
                   GestureDetector(
                     onTap: () => context.canPop()
                         ? context.pop()
@@ -111,19 +108,23 @@ class PlanDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // FIX 2 — owner attribution
-                  Text(
-                    ownerLabel,
-                    style: const TextStyle(
-                      fontFamily: TromblText.sans,
-                      color: TromblColors.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                  // ── Non-owner attribution ─────────────────────────────────
+                  if (!isOwner) ...[
+                    Text(
+                      ownerDisplayName != null
+                          ? "$ownerDisplayName's plan"
+                          : 'a plan',
+                      style: const TextStyle(
+                        fontFamily: TromblText.sans,
+                        color: TromblColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
+                  ],
 
-                  // Vibe + FIX 3 time pill
+                  // ── Vibe + time ───────────────────────────────────────────
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
@@ -160,7 +161,7 @@ class PlanDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 6),
 
-                  // Title
+                  // ── Title + detail ────────────────────────────────────────
                   Text(
                     plan.title,
                     style: const TextStyle(
@@ -177,17 +178,9 @@ class PlanDetailScreen extends ConsumerWidget {
                         style: const TextStyle(
                             color: TromblColors.textSub, fontSize: 14)),
                   ],
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
-                  // Share + cancel — owner only
-                  if (isOwner) ...[
-                    _ShareCodeRow(token: plan.shareToken, accent: accent),
-                    const SizedBox(height: 16),
-                    _CancelPlanButton(planId: planId),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // RSVP — non-owner only
+                  // ── Non-owner RSVP ────────────────────────────────────────
                   if (!isOwner) ...[
                     myMemberAsync.when(
                       loading: () => const SizedBox.shrink(),
@@ -201,7 +194,7 @@ class PlanDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                   ],
 
-                  // FIX 1 + 4 — who's in with summary and "you" pinned
+                  // ── Body: owner vs joiner ─────────────────────────────────
                   Expanded(
                     child: membersAsync.when(
                       loading: () => const Center(
@@ -211,7 +204,6 @@ class PlanDetailScreen extends ConsumerWidget {
                       ),
                       error: (_, __) => const SizedBox.shrink(),
                       data: (members) {
-                        // Sort: current user first
                         final sorted = [...members]..sort((a, b) {
                             if (a.userId == uid) return -1;
                             if (b.userId == uid) return 1;
@@ -222,13 +214,79 @@ class PlanDetailScreen extends ConsumerWidget {
                         final maybeCount = members.where((m) => m.status == 'maybe').length;
                         final outCount   = members.where((m) => m.status == 'out').length;
 
-                        final profilesAsync = ref.watch(memberProfilesProvider(planId));
-                        final profiles = profilesAsync.value ?? {};
+                        final profiles = ref.watch(memberProfilesProvider(planId)).value ?? {};
 
+                        if (isOwner) {
+                          // Owner: WHO'S IN → SHARE → cancel
+                          return SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // WHO'S IN header
+                                Row(
+                                  children: [
+                                    const Text(
+                                      "WHO'S IN",
+                                      style: TextStyle(
+                                        color: TromblColors.textMuted,
+                                        fontSize: 10,
+                                        letterSpacing: 2,
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: TromblText.sans,
+                                      ),
+                                    ),
+                                    if (members.isNotEmpty) ...[
+                                      const Spacer(),
+                                      Text(
+                                        _statusSummary(inCount, maybeCount, outCount),
+                                        style: const TextStyle(
+                                          color: TromblColors.textMuted,
+                                          fontSize: 11,
+                                          fontFamily: TromblText.sans,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                if (members.isEmpty)
+                                  const Text(
+                                    "no one's here yet. share the link below.",
+                                    style: TextStyle(
+                                        color: TromblColors.textMuted,
+                                        fontSize: 14),
+                                  )
+                                else
+                                  ...sorted.map((m) => _MemberRow(
+                                        member: m,
+                                        profile: profiles[m.userId],
+                                        isMe: m.userId == uid,
+                                        isHost: m.userId == plan.ownerId,
+                                      )),
+
+                                const SizedBox(height: 28),
+
+                                // SHARE — secondary, framed as "bring more people"
+                                _ShareCodeRow(
+                                  token: plan.shareToken,
+                                  accent: accent,
+                                ),
+
+                                const SizedBox(height: 36),
+
+                                // CANCEL — muted, gated, bottom
+                                _CancelPlanButton(planId: planId),
+
+                                const SizedBox(height: 8),
+                              ],
+                            ),
+                          );
+                        }
+
+                        // Joiner: WHO'S IN list fills remaining space
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // WHO'S IN header + FIX 4 status summary
                             Row(
                               children: [
                                 const Text(
@@ -421,7 +479,7 @@ class _ShareCodeRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'INVITE LINK',
+          'BRING MORE PEOPLE',
           style: TextStyle(
             color: TromblColors.textMuted,
             fontSize: 10,
@@ -522,11 +580,11 @@ class _CancelPlanButton extends ConsumerWidget {
               }
             },
       child: Text(
-        loading ? 'cancelling…' : 'cancel plan →',
-        style: TextStyle(
-          color: loading ? TromblColors.textMuted : TromblColors.fomo,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+        loading ? 'cancelling…' : 'cancel plan',
+        style: const TextStyle(
+          color: TromblColors.textMuted,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -555,7 +613,6 @@ class _MemberRow extends StatelessWidget {
       _       => ('🤔', TromblColors.jomo),
     };
 
-    // FIX 1 — show "you" for the current user
     final name = isMe
         ? 'you'
         : (profile?.displayName ??
@@ -566,7 +623,6 @@ class _MemberRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        // FIX 1 — highlight "you" row subtly
         color: isMe ? TromblColors.cardLit : TromblColors.card,
         borderRadius: BorderRadius.circular(12),
       ),
@@ -578,19 +634,15 @@ class _MemberRow extends StatelessWidget {
                 Text(
                   name,
                   style: TextStyle(
-                    color: isMe ? TromblColors.text : TromblColors.text,
+                    color: TromblColors.text,
                     fontSize: 14,
                     fontWeight: isMe ? FontWeight.w700 : FontWeight.w500,
                     fontFamily: TromblText.sans,
                   ),
                 ),
-                // FIX 2 — host badge
                 if (isHost) ...[
                   const SizedBox(width: 6),
-                  const Text(
-                    '👑',
-                    style: TextStyle(fontSize: 12),
-                  ),
+                  const Text('👑', style: TextStyle(fontSize: 12)),
                 ],
               ],
             ),
