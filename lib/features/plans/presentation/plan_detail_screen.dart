@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/app_config.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
@@ -436,7 +437,7 @@ class _ShareCodeRow extends StatelessWidget {
                 onTap: () {
                   HapticFeedback.lightImpact();
                   Clipboard.setData(ClipboardData(
-                      text: 'https://trombl.netlify.app/p/$token'));
+                      text: '${AppConfig.shareBaseUrl}/p/$token'));
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('link copied'),
@@ -452,7 +453,7 @@ class _ShareCodeRow extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'trombl.app/p/$token',
+                    '${AppConfig.shareBaseUrl}/p/$token',
                     style: TextStyle(
                       color: accent,
                       fontSize: 13,
@@ -468,7 +469,7 @@ class _ShareCodeRow extends StatelessWidget {
               onTap: () {
                 HapticFeedback.mediumImpact();
                 Share.share(
-                  'join my trombl plan!\nhttps://trombl.netlify.app/p/$token',
+                  'join my trombl plan!\n${AppConfig.shareBaseUrl}/p/$token',
                   subject: 'join my plan on trombl',
                 );
               },

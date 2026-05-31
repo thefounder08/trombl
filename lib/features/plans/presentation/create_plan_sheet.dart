@@ -5,6 +5,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/app_config.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../../../shared/result.dart';
@@ -186,7 +187,7 @@ class _ShareSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final token = plan.shareToken;
     final shareText =
-        "i'm planning: ${plan.title}. you in?\ntrombl code: $token\nhttps://trombl.com/p/$token";
+        "i'm planning: ${plan.title}. you in?\n${AppConfig.shareBaseUrl}/p/$token";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

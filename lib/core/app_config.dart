@@ -8,6 +8,10 @@ class AppConfig {
   /// The LLM proxy edge function name (provider switching happens server-side).
   static const llmProxyFunction = 'llm-proxy';
 
+  /// Base URL for invite/share links. Change this once when the custom domain
+  /// is wired to Netlify — all link generation derives from this constant.
+  static const shareBaseUrl = 'https://trombl.netlify.app';
+
   static bool get isConfigured =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

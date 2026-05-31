@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart' hide Session;
 
+import '../../../core/app_config.dart';
 import '../../../shared/result.dart';
 import '../domain/plan_models.dart';
 
@@ -49,7 +50,7 @@ class FeaturePlanRepository {
             {'plan_id': plan.id, 'user_id': _uid, 'status': 'in'},
             onConflict: 'plan_id,user_id',
           );
-      final shareUrl = 'https://trombl.netlify.app/p/${plan.shareToken}';
+      final shareUrl = '${AppConfig.shareBaseUrl}/p/${plan.shareToken}';
       return Success((plan: plan, shareUrl: shareUrl));
     } catch (_) {
       return const Failure("couldn't make the plan. try again?");
