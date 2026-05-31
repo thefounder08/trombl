@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
+import '../../../shared/models/models.dart';
+import '../../plans/providers/plan_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../checkin/providers/checkin_providers.dart';
 import '../domain/menu_data.dart';
@@ -139,6 +142,8 @@ class MenuScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 10),
                   _NewDropCard(category: drop, vibe: vibe),
+                  const SizedBox(height: 24),
+                  const _MyPlansSection(),
                 ],
               ),
             ),
@@ -397,6 +402,110 @@ class _NewDropCard extends StatelessWidget {
               style: TextStyle(
                 color: TromblColors.newDrop.withValues(alpha: 0.7),
                 fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Your plans ───────────────────────────────────────────────────────────────
+
+class _MyPlansSection extends ConsumerWidget {
+  const _MyPlansSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final myPlans = ref.watch(myPlansProvider);
+    final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
+
+    return myPlans.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (plans) {
+        if (plans.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'YOUR PLANS',
+              style: TextStyle(
+                color: TromblColors.textMuted,
+                fontSize: 9,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w700,
+                fontFamily: TromblText.sans,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...plans.map((plan) => _PlanRow(plan: plan, isOwner: plan.ownerId == uid)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PlanRow extends StatelessWidget {
+  const _PlanRow({required this.plan, required this.isOwner});
+  final Plan plan;
+  final bool isOwner;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = TromblColors.accentFor(plan.vibe);
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        context.push('/plan/${plan.id}');
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: TromblColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: accent.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    plan.title,
+                    style: const TextStyle(
+                      color: TromblColors.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: TromblText.sans,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isOwner
+                        ? 'ur plan · ${plan.vibe}'
+                        : 'joined · ${plan.vibe}',
+                    style: const TextStyle(
+                      color: TromblColors.textMuted,
+                      fontSize: 11,
+                      fontFamily: TromblText.sans,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '→',
+              style: TextStyle(
+                color: accent.withValues(alpha: 0.55),
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
               ),
             ),

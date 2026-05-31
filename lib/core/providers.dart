@@ -21,8 +21,14 @@ final currentUserProvider = Provider<User?>((ref) {
 });
 
 /// Stores the plan share-token a user was viewing when they got sent to login.
-/// Cleared once the post-login navigation back to the plan has been triggered.
+/// Cleared by the router redirect after routing to /p/:token.
 final pendingPlanTokenProvider = StateProvider<String?>((_) => null);
+
+/// Stores the RSVP status ('in' | 'out') the user intended when they tapped
+/// a CTA on /p/:token before being sent to login. Kept alive through setup so
+/// the plan landing screen can auto-complete the join after auth.
+/// Cleared by PlanLandingScreen after the join succeeds.
+final pendingPlanStatusProvider = StateProvider<String?>((_) => null);
 
 /// The LLM, exposed ONLY as the abstract interface.
 /// Concrete type (ProxyLlmProvider) is hidden from feature code.

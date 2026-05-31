@@ -8,7 +8,9 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/app_config.dart';
+import 'core/providers.dart';
 import 'core/router/app_router.dart';
+import 'core/services/pending_join_service.dart';
 import 'core/theme/trombl_theme.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/observability/analytics_service.dart';
@@ -53,7 +55,21 @@ Future<void> _boot() async {
     debugPrint('[Notification] init skipped: $e');
   }
 
-  runApp(const ProviderScope(child: TromblApp()));
+  // Load any pending plan-join intent from SharedPreferences so it survives
+  // a magic-link deep-link restart on mobile.
+  final pendingJoin = await PendingJoinService.load();
+
+  runApp(ProviderScope(
+    overrides: pendingJoin != null
+        ? [
+            pendingPlanTokenProvider
+                .overrideWith((ref) => pendingJoin.token),
+            pendingPlanStatusProvider
+                .overrideWith((ref) => pendingJoin.status),
+          ]
+        : const [],
+    child: const TromblApp(),
+  ));
 }
 
 class TromblApp extends ConsumerStatefulWidget {

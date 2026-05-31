@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/trombl_theme.dart';
 import '../../../core/providers.dart';
+import '../../../core/services/pending_join_service.dart';
 import '../../../shared/result.dart';
 import '../data/plan_repository.dart';
 import '../domain/plan_phrasing.dart';
@@ -47,6 +50,31 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
           _notFound = true;
       }
     });
+
+    final data = _data;
+    if (data == null || !mounted) return;
+
+    final isLoggedIn = ref.read(currentUserProvider) != null;
+    if (!isLoggedIn) return;
+
+    // Re-opening invite after already joining → show confirmation immediately.
+    final membership = await ref
+        .read(featurePlanRepoProvider)
+        .myMembership(data.plan.id);
+    if (!mounted) return;
+    if (membership != null) {
+      setState(() {
+        _confirmed = true;
+        _confirmedStatus = membership.status;
+      });
+      return;
+    }
+
+    // Not yet a member — auto-complete any pending join intent.
+    final pendingStatus = ref.read(pendingPlanStatusProvider);
+    if (pendingStatus != null) {
+      await _respond(pendingStatus);
+    }
   }
 
   Future<void> _respond(String status) async {
@@ -54,7 +82,10 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
     final loggedIn = ref.read(currentUserProvider) != null;
 
     if (!loggedIn) {
+      // Persist intent so it survives login, name-setup, and magic-link restart.
       ref.read(pendingPlanTokenProvider.notifier).state = widget.token;
+      ref.read(pendingPlanStatusProvider.notifier).state = status;
+      unawaited(PendingJoinService.save(widget.token, status));
       context.go('/login');
       return;
     }
@@ -70,6 +101,9 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
 
     switch (result) {
       case Success():
+        // Clear pending intent — join is written.
+        ref.read(pendingPlanStatusProvider.notifier).state = null;
+        unawaited(PendingJoinService.clear());
         setState(() {
           _confirmed = true;
           _confirmedStatus = status;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../vibe/providers/session_providers.dart';
 
@@ -27,8 +28,18 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     if (name.isEmpty) return;
     setState(() => _loading = true);
     await ref.read(sessionRepositoryProvider).updateProfile(displayName: name);
-    // New users go through onboarding before picking their first vibe.
-    if (mounted) context.go('/onboarding');
+    if (!mounted) return;
+
+    // If user arrived via an invite link, skip onboarding and return them to
+    // the plan. The landing screen will auto-complete the join using the
+    // pendingPlanStatusProvider that was set when they tapped "i'm in".
+    final pendingToken = ref.read(pendingPlanTokenProvider);
+    if (pendingToken != null) {
+      ref.read(pendingPlanTokenProvider.notifier).state = null;
+      context.go('/p/$pendingToken');
+    } else {
+      context.go('/onboarding');
+    }
   }
 
   @override
