@@ -59,6 +59,25 @@ final currentProfileProvider =
   return ref.watch(sessionRepositoryProvider).getProfile();
 });
 
+// Owner profile for a given plan — resolves ownerId → Profile.
+// Used on the detail screen to show "X's plan" vs "your plan".
+final planOwnerProfileProvider =
+    FutureProvider.autoDispose.family<Profile?, String>((ref, planId) async {
+  final plan = await ref.watch(planDetailProvider(planId).future);
+  if (plan == null) return null;
+  final map = await ref
+      .read(sessionRepositoryProvider)
+      .profilesForUsers([plan.ownerId]);
+  return map[plan.ownerId];
+});
+
+// Count of 'in' members for a plan — shown on the "your plans" menu row.
+final planInCountProvider =
+    FutureProvider.autoDispose.family<int, String>((ref, planId) async {
+  final members = await ref.watch(planMembersProvider(planId).future);
+  return members.where((m) => m.status == 'in').length;
+});
+
 // ── RSVP notifier ────────────────────────────────────────────────────────────
 
 class RsvpNotifier extends AutoDisposeFamilyNotifier<AsyncValue<String?>, String> {

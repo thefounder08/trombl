@@ -1,6 +1,31 @@
 library plan_phrasing;
 
 // Shared label → human invitation copy.
+// Also contains formatStartTime() used by both plan screens.
+
+/// Formats a plan's starts_at timestamp as a short relative label.
+/// e.g. "tonight · 9 pm", "tomorrow · 8 pm", "sat · 8 pm".
+/// Returns null if [dt] is null.
+String? formatStartTime(DateTime? dt) {
+  if (dt == null) return null;
+  final now = DateTime.now();
+  final today    = DateTime(now.year, now.month, now.day);
+  final tomorrow = today.add(const Duration(days: 1));
+  final planDay  = DateTime(dt.year, dt.month, dt.day);
+
+  final h    = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+  final amPm = dt.hour >= 12 ? 'pm' : 'am';
+  final timeStr = dt.minute == 0
+      ? '$h $amPm'
+      : '$h:${dt.minute.toString().padLeft(2, '0')} $amPm';
+
+  if (planDay == today)    return 'tonight · $timeStr';
+  if (planDay == tomorrow) return 'tomorrow · $timeStr';
+  const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  return '${days[dt.weekday - 1]} · $timeStr';
+}
+
+
 // Used by create_plan_screen (title pre-fill) and plan_landing_screen
 // (headline for strangers). Both import from here so the mapping never
 // diverges. When menu_data.dart gets a new option, add its mapping here.

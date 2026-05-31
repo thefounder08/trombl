@@ -64,6 +64,8 @@ class Plan with _$Plan {
     String? detail,
     @JsonKey(name: 'share_token') required String shareToken,
     @JsonKey(name: 'created_at') DateTime? createdAt,
+    @JsonKey(name: 'starts_at') DateTime? startsAt,
+    @JsonKey(name: 'expires_at') DateTime? expiresAt,
   }) = _Plan;
 
   factory Plan.fromJson(Map<String, dynamic> json) => _$PlanFromJson(json);

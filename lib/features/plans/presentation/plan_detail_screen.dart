@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
+import '../../plan/domain/plan_phrasing.dart';
 import '../providers/plan_providers.dart';
 
 Future<bool> _confirmCancel(BuildContext context) async {
@@ -51,10 +52,11 @@ class PlanDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final planAsync = ref.watch(planDetailProvider(planId));
-    final membersAsync = ref.watch(planMembersProvider(planId));
-    final myMemberAsync = ref.watch(myMembershipProvider(planId));
-    final rsvpState = ref.watch(rsvpProvider(planId));
+    final planAsync        = ref.watch(planDetailProvider(planId));
+    final membersAsync     = ref.watch(planMembersProvider(planId));
+    final myMemberAsync    = ref.watch(myMembershipProvider(planId));
+    final ownerProfileAsync = ref.watch(planOwnerProfileProvider(planId));
+    final rsvpState        = ref.watch(rsvpProvider(planId));
     final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
 
     return Scaffold(
@@ -74,14 +76,30 @@ class PlanDetailScreen extends ConsumerWidget {
                     style: TextStyle(color: TromblColors.textMuted)),
               );
             }
-            final accent = TromblColors.accentFor(plan.vibe);
-            final isOwner = plan.ownerId == uid;
+
+            final accent   = TromblColors.accentFor(plan.vibe);
+            final isOwner  = plan.ownerId == uid;
+            final timeLabel = formatStartTime(plan.startsAt);
+
+            // Owner name for attribution
+            final ownerProfile = ownerProfileAsync.value;
+            final ownerDisplayName =
+                ownerProfile?.displayName ??
+                (ownerProfile?.handle != null
+                    ? '@${ownerProfile!.handle}'
+                    : null);
+            final ownerLabel = isOwner
+                ? 'your plan'
+                : (ownerDisplayName != null
+                    ? "$ownerDisplayName's plan"
+                    : 'a plan');
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Back
                   GestureDetector(
                     onTap: () => context.canPop()
                         ? context.pop()
@@ -90,17 +108,58 @@ class PlanDetailScreen extends ConsumerWidget {
                         style: TextStyle(
                             color: TromblColors.textMuted, fontSize: 13)),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
+
+                  // FIX 2 — owner attribution
                   Text(
-                    plan.vibe == 'fomo' ? '⚡ fomo' : '🛌 jomo',
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
+                    ownerLabel,
+                    style: const TextStyle(
+                      fontFamily: TromblText.sans,
+                      color: TromblColors.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                  const SizedBox(height: 8),
+
+                  // Vibe + FIX 3 time pill
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        plan.vibe == 'fomo' ? '⚡ fomo' : '🛌 jomo',
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      if (timeLabel != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: TromblColors.card,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: TromblColors.border),
+                          ),
+                          child: Text(
+                            '📍 $timeLabel',
+                            style: const TextStyle(
+                              fontFamily: TromblText.sans,
+                              color: TromblColors.textSub,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
+
+                  // Title
                   Text(
                     plan.title,
                     style: const TextStyle(
@@ -118,14 +177,16 @@ class PlanDetailScreen extends ConsumerWidget {
                             color: TromblColors.textSub, fontSize: 14)),
                   ],
                   const SizedBox(height: 28),
-                  // Share code + cancel — only for owners
+
+                  // Share + cancel — owner only
                   if (isOwner) ...[
                     _ShareCodeRow(token: plan.shareToken, accent: accent),
                     const SizedBox(height: 16),
                     _CancelPlanButton(planId: planId),
                     const SizedBox(height: 24),
                   ],
-                  // RSVP row — only for non-owners
+
+                  // RSVP — non-owner only
                   if (!isOwner) ...[
                     myMemberAsync.when(
                       loading: () => const SizedBox.shrink(),
@@ -138,17 +199,8 @@ class PlanDetailScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 24),
                   ],
-                  // Members
-                  const Text(
-                    'WHO\'S IN',
-                    style: TextStyle(
-                      color: TromblColors.textMuted,
-                      fontSize: 10,
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+
+                  // FIX 1 + 4 — who's in with summary and "you" pinned
                   Expanded(
                     child: membersAsync.when(
                       loading: () => const Center(
@@ -158,23 +210,71 @@ class PlanDetailScreen extends ConsumerWidget {
                       ),
                       error: (_, __) => const SizedBox.shrink(),
                       data: (members) {
-                        if (members.isEmpty) {
-                          return const Text(
-                            "no one's rsvp'd yet. share the code.",
-                            style: TextStyle(
-                                color: TromblColors.textMuted, fontSize: 14),
-                          );
-                        }
-                        final profilesAsync =
-                            ref.watch(memberProfilesProvider(planId));
+                        // Sort: current user first
+                        final sorted = [...members]..sort((a, b) {
+                            if (a.userId == uid) return -1;
+                            if (b.userId == uid) return 1;
+                            return 0;
+                          });
+
+                        final inCount    = members.where((m) => m.status == 'in').length;
+                        final maybeCount = members.where((m) => m.status == 'maybe').length;
+                        final outCount   = members.where((m) => m.status == 'out').length;
+
+                        final profilesAsync = ref.watch(memberProfilesProvider(planId));
                         final profiles = profilesAsync.value ?? {};
-                        return ListView(
-                          children: members
-                              .map((m) => _MemberRow(
-                                    member: m,
-                                    profile: profiles[m.userId],
-                                  ))
-                              .toList(),
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // WHO'S IN header + FIX 4 status summary
+                            Row(
+                              children: [
+                                const Text(
+                                  "WHO'S IN",
+                                  style: TextStyle(
+                                    color: TromblColors.textMuted,
+                                    fontSize: 10,
+                                    letterSpacing: 2,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: TromblText.sans,
+                                  ),
+                                ),
+                                if (members.isNotEmpty) ...[
+                                  const Spacer(),
+                                  Text(
+                                    _statusSummary(inCount, maybeCount, outCount),
+                                    style: const TextStyle(
+                                      color: TromblColors.textMuted,
+                                      fontSize: 11,
+                                      fontFamily: TromblText.sans,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (members.isEmpty)
+                              const Text(
+                                "no one's rsvp'd yet. share the link.",
+                                style: TextStyle(
+                                    color: TromblColors.textMuted,
+                                    fontSize: 14),
+                              )
+                            else
+                              Expanded(
+                                child: ListView(
+                                  children: sorted
+                                      .map((m) => _MemberRow(
+                                            member: m,
+                                            profile: profiles[m.userId],
+                                            isMe: m.userId == uid,
+                                            isHost: m.userId == plan.ownerId,
+                                          ))
+                                      .toList(),
+                                ),
+                              ),
+                          ],
                         );
                       },
                     ),
@@ -187,7 +287,17 @@ class PlanDetailScreen extends ConsumerWidget {
       ),
     );
   }
+
+  static String _statusSummary(int inN, int maybeN, int outN) {
+    final parts = <String>[];
+    if (inN    > 0) parts.add('$inN in');
+    if (maybeN > 0) parts.add('$maybeN maybe');
+    if (outN   > 0) parts.add('$outN out');
+    return parts.join(' · ');
+  }
 }
+
+// ─── RSVP row ─────────────────────────────────────────────────────────────────
 
 class _RsvpRow extends ConsumerWidget {
   const _RsvpRow({
@@ -272,8 +382,7 @@ class _RsvpChip extends ConsumerWidget {
             },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
               ? TromblColors.jomo.withValues(alpha: 0.15)
@@ -289,8 +398,7 @@ class _RsvpChip extends ConsumerWidget {
           label,
           style: TextStyle(
             color: isSelected ? TromblColors.jomo : TromblColors.textSub,
-            fontWeight:
-                isSelected ? FontWeight.w700 : FontWeight.w500,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             fontSize: 13,
           ),
         ),
@@ -298,6 +406,8 @@ class _RsvpChip extends ConsumerWidget {
     );
   }
 }
+
+// ─── Share code row ───────────────────────────────────────────────────────────
 
 class _ShareCodeRow extends StatelessWidget {
   const _ShareCodeRow({required this.token, required this.accent});
@@ -310,7 +420,7 @@ class _ShareCodeRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'INVITE CODE',
+          'INVITE LINK',
           style: TextStyle(
             color: TromblColors.textMuted,
             fontSize: 10,
@@ -325,10 +435,11 @@ class _ShareCodeRow extends StatelessWidget {
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  Clipboard.setData(ClipboardData(text: token));
+                  Clipboard.setData(ClipboardData(
+                      text: 'https://trombl.netlify.app/p/$token'));
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('code copied'),
+                      content: Text('link copied'),
                       duration: Duration(seconds: 2),
                     ),
                   );
@@ -341,13 +452,13 @@ class _ShareCodeRow extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    token,
+                    'trombl.app/p/$token',
                     style: TextStyle(
                       color: accent,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 3,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -357,8 +468,8 @@ class _ShareCodeRow extends StatelessWidget {
               onTap: () {
                 HapticFeedback.mediumImpact();
                 Share.share(
-                  "join my trombl plan! code: $token\nhttps://trombl.com/p/$token",
-                  subject: "join my plan on trombl",
+                  'join my trombl plan!\nhttps://trombl.netlify.app/p/$token',
+                  subject: 'join my plan on trombl',
                 );
               },
               child: Container(
@@ -369,7 +480,8 @@ class _ShareCodeRow extends StatelessWidget {
                 ),
                 child: const Text('share 🔗',
                     style: TextStyle(
-                        color: TromblColors.textSub, fontSize: 13,
+                        color: TromblColors.textSub,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600)),
               ),
             ),
@@ -380,13 +492,15 @@ class _ShareCodeRow extends StatelessWidget {
   }
 }
 
+// ─── Cancel button ────────────────────────────────────────────────────────────
+
 class _CancelPlanButton extends ConsumerWidget {
   const _CancelPlanButton({required this.planId});
   final String planId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(cancelPlanProvider);
+    final state   = ref.watch(cancelPlanProvider);
     final loading = state is AsyncLoading;
 
     return GestureDetector(
@@ -418,38 +532,66 @@ class _CancelPlanButton extends ConsumerWidget {
   }
 }
 
+// ─── Member row ───────────────────────────────────────────────────────────────
+
 class _MemberRow extends StatelessWidget {
-  const _MemberRow({required this.member, this.profile});
+  const _MemberRow({
+    required this.member,
+    required this.isMe,
+    required this.isHost,
+    this.profile,
+  });
   final PlanMember member;
   final Profile? profile;
+  final bool isMe;
+  final bool isHost;
 
   @override
   Widget build(BuildContext context) {
     final (icon, color) = switch (member.status) {
-      'in' => ('🙌', TromblColors.fomo),
-      'out' => ('🙅', TromblColors.textMuted),
-      _ => ('🤔', TromblColors.jomo),
+      'in'    => ('🙌', TromblColors.fomo),
+      'out'   => ('🙅', TromblColors.textMuted),
+      _       => ('🤔', TromblColors.jomo),
     };
 
-    final name = profile?.displayName ??
-        (profile?.handle != null ? '@${profile!.handle}' : null) ??
-        'trombl user';
+    // FIX 1 — show "you" for the current user
+    final name = isMe
+        ? 'you'
+        : (profile?.displayName ??
+            (profile?.handle != null ? '@${profile!.handle}' : null) ??
+            'trombl user');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: TromblColors.card,
+        // FIX 1 — highlight "you" row subtly
+        color: isMe ? TromblColors.cardLit : TromblColors.card,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(
-                  color: TromblColors.text, fontSize: 14,
-                  fontWeight: FontWeight.w500),
+            child: Row(
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    color: isMe ? TromblColors.text : TromblColors.text,
+                    fontSize: 14,
+                    fontWeight: isMe ? FontWeight.w700 : FontWeight.w500,
+                    fontFamily: TromblText.sans,
+                  ),
+                ),
+                // FIX 2 — host badge
+                if (isHost) ...[
+                  const SizedBox(width: 6),
+                  const Text(
+                    '👑',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ],
             ),
           ),
           Text('$icon  ${member.status}',

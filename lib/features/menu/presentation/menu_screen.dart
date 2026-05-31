@@ -449,14 +449,23 @@ class _MyPlansSection extends ConsumerWidget {
   }
 }
 
-class _PlanRow extends StatelessWidget {
+class _PlanRow extends ConsumerWidget {
   const _PlanRow({required this.plan, required this.isOwner});
   final Plan plan;
   final bool isOwner;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final accent = TromblColors.accentFor(plan.vibe);
+    // FIX 6 — show "N in" count; silently omit while loading / on error
+    final inCount = ref.watch(planInCountProvider(plan.id)).value;
+
+    final subParts = <String>[
+      isOwner ? 'ur plan' : 'joined',
+      plan.vibe,
+      if (inCount != null && inCount > 0) '$inCount in',
+    ];
+
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
@@ -489,9 +498,7 @@ class _PlanRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    isOwner
-                        ? 'ur plan · ${plan.vibe}'
-                        : 'joined · ${plan.vibe}',
+                    subParts.join(' · '),
                     style: const TextStyle(
                       color: TromblColors.textMuted,
                       fontSize: 11,

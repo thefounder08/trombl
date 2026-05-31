@@ -117,6 +117,8 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final uid = ref.read(currentUserProvider)?.id;
+    final isOwner = uid != null && _data != null && uid == _data!.plan.ownerId;
     return Scaffold(
       backgroundColor: TromblColors.bg,
       body: SafeArea(
@@ -128,6 +130,7 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
                     ? _ConfirmedView(status: _confirmedStatus!)
                     : _PlanView(
                         data: _data!,
+                        isOwner: isOwner,
                         responding: _responding,
                         onRespond: _respond,
                       ),
@@ -240,6 +243,33 @@ class _ConfirmedView extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          // FIX 5 — viral loop: joiner → creator
+          if (isIn) ...[
+            GestureDetector(
+              onTap: () => context.go('/vibe'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [TromblColors.fomo, TromblColors.jomo],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Text(
+                  'wanna make ur own? →',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: TromblText.sans,
+                    color: Color(0xFF090909),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           GestureDetector(
             onTap: () => context.go('/menu'),
             child: Container(
@@ -272,19 +302,22 @@ class _ConfirmedView extends StatelessWidget {
 class _PlanView extends StatelessWidget {
   const _PlanView({
     required this.data,
+    required this.isOwner,
     required this.responding,
     required this.onRespond,
   });
   final LandingData data;
+  final bool isOwner;
   final bool responding;
   final void Function(String) onRespond;
 
   @override
   Widget build(BuildContext context) {
-    final accent = TromblColors.accentFor(data.plan.vibe);
-    final inviter = data.ownerName ?? 'someone';
+    final accent   = TromblColors.accentFor(data.plan.vibe);
+    final inviter  = data.ownerName ?? 'someone';
     final headline = planPhrasing(data.plan.title);
-    final detail = data.plan.detail?.trim();
+    final detail   = data.plan.detail?.trim();
+    final timeLabel = formatStartTime(data.plan.startsAt);
 
     return Column(
       children: [
@@ -295,12 +328,22 @@ class _PlanView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Inviter
-                _InviterRow(name: inviter, vibe: data.plan.vibe),
+                // 1. Owner attribution — FIX 2
+                if (isOwner)
+                  _OwnerBadge(accent: accent)
+                else
+                  _InviterRow(name: inviter, vibe: data.plan.vibe),
                 const SizedBox(height: 32),
 
-                // 2. Vibe pill
-                _VibePill(vibe: data.plan.vibe, accent: accent),
+                // 2. Vibe pill + optional time pill — FIX 3
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _VibePill(vibe: data.plan.vibe, accent: accent),
+                    if (timeLabel != null) _TimePill(label: timeLabel),
+                  ],
+                ),
                 const SizedBox(height: 14),
 
                 // 3. Headline
@@ -338,7 +381,7 @@ class _PlanView extends StatelessWidget {
                   ),
                 ),
 
-                // 5. Social proof — only when at least one member is in
+                // 5. Social proof
                 if (data.memberCount > 0) ...[
                   const SizedBox(height: 22),
                   _SocialProof(
@@ -480,6 +523,58 @@ class _VibePill extends StatelessWidget {
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
+          ),
+        ),
+      );
+}
+
+// ─── Owner badge (shown on landing when viewer IS the owner) ─────────────────
+
+class _OwnerBadge extends StatelessWidget {
+  const _OwnerBadge({required this.accent});
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accent.withValues(alpha: 0.30)),
+        ),
+        child: Text(
+          '👑 your plan',
+          style: TextStyle(
+            fontFamily: TromblText.sans,
+            color: accent,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+}
+
+// ─── Time pill ────────────────────────────────────────────────────────────────
+
+class _TimePill extends StatelessWidget {
+  const _TimePill({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: TromblColors.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: TromblColors.border),
+        ),
+        child: Text(
+          '📍 $label',
+          style: const TextStyle(
+            fontFamily: TromblText.sans,
+            color: TromblColors.textSub,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
           ),
         ),
       );
