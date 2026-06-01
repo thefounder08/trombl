@@ -35,3 +35,11 @@ final pendingPlanStatusProvider = StateProvider<String?>((_) => null);
 final llmProvider = Provider<LlmProvider>((ref) {
   return ProxyLlmProvider(ref.watch(supabaseProvider));
 });
+
+/// Optional mood text typed by the user on the home screen.
+/// Read by the decide picker to add context to the prompt; cleared after use.
+final moodInputProvider = StateProvider<String?>((_) => null);
+
+/// Set to true by home screen before navigating to /decide so the picker
+/// auto-starts (skipping the fork phase).
+final decideShouldAutoStartProvider = StateProvider<bool>((_) => false);

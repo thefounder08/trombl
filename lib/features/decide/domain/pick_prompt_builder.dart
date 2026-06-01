@@ -15,6 +15,7 @@ abstract final class PickPromptBuilder {
     required int rerollCount,
     required DecideContext ctx,
     required List<String> inSessionRejects, // picks rerolled this session
+    String? moodText,
   }) {
     final depth = ctx.sessionCount <= 2
         ? _Depth.thin
@@ -34,6 +35,7 @@ abstract final class PickPromptBuilder {
         rerollCount: rerollCount,
         inSessionRejects: inSessionRejects,
         recentPicks: ctx.recentPicks,
+        moodText: moodText,
       ),
     );
   }
@@ -71,12 +73,19 @@ tag guide:
     required int rerollCount,
     required List<String> inSessionRejects,
     required List<AiPick> recentPicks,
+    String? moodText,
   }) {
     final buf = StringBuffer();
 
     buf.writeln('vibe: $vibe');
     buf.writeln('time: $dayOfWeek, ${_hourLabel(hour)}');
     buf.writeln('city: ${city ?? "unknown"}');
+
+    // User mood context — respond with a decision, never a question back
+    if (moodText != null && moodText.isNotEmpty) {
+      buf.writeln('user mood: $moodText');
+      buf.writeln('pick must match or complement this mood. respond with a decision only — no follow-up questions.');
+    }
 
     // Time constraint (Scenario 3)
     final constraint = _timeConstraint(hour, vibe);

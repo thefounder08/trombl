@@ -36,7 +36,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
       return;
     }
     AnalyticsService.vibePicked(vibe: vibe);
-    if (mounted) context.go('/decide');
+    if (mounted) context.go('/home');
   }
 
   @override
@@ -50,7 +50,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
     // Listener only routes to /menu for RESTORED sessions.
     // Fresh picks are handled by _pick() directly; _picked guards this.
     ref.listen(activeSessionProvider, (_, next) {
-      if (next != null && !_picked && mounted) context.go('/menu');
+      if (next != null && !_picked && mounted) context.go('/home');
     });
 
     // While restore is in flight — show a subtle loading state, not pure black.
@@ -64,7 +64,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
     // Restore done + session exists → go to menu (only if user didn't just pick).
     if (session != null && !_picked) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) context.go('/menu');
+        if (mounted) context.go('/home');
       });
       return const Scaffold(backgroundColor: TromblColors.bg);
     }

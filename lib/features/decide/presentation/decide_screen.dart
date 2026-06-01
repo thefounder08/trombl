@@ -32,6 +32,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
   AiPick? _currentPick;
   int _rerollCount = 0;
   bool _actionLoading = false;
+  bool _autoStartChecked = false;
 
   // Tracks picks rerolled this session for in-prompt anti-repetition.
   final List<String> _inSessionRejects = [];
@@ -55,6 +56,10 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     // Load history context (graceful — returns empty on error)
     final ctx = await ref.read(decideRepositoryProvider).loadContext();
 
+    // Consume mood text (home screen may have set it)
+    final mood = ref.read(moodInputProvider);
+    if (mood != null) ref.read(moodInputProvider.notifier).state = null;
+
     // Build prompt
     final prompt = PickPromptBuilder.build(
       vibe: session.vibe,
@@ -64,6 +69,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       rerollCount: _rerollCount,
       ctx: ctx,
       inSessionRejects: List.unmodifiable(_inSessionRejects),
+      moodText: mood,
     );
 
     // Call LLM; fall back silently on any failure (Scenario 5)
@@ -197,6 +203,16 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
 
     final accent = TromblColors.accentFor(session.vibe);
 
+    // Auto-start when navigated from home via decideShouldAutoStartProvider
+    if (!_autoStartChecked) {
+      _autoStartChecked = true;
+      final shouldStart = ref.read(decideShouldAutoStartProvider);
+      if (shouldStart) {
+        ref.read(decideShouldAutoStartProvider.notifier).state = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _requestPick());
+      }
+    }
+
     return Scaffold(
       backgroundColor: TromblColors.bg,
       body: SafeArea(
@@ -206,7 +222,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               accent: accent,
               onPickForMe: _requestPick,
               onBrowse: () => context.go('/menu'),
-              onBack: () => context.go('/vibe'),
+              onBack: () => context.go('/home'),
             ),
           _Phase.loading => _Loading(vibe: session.vibe),
           _Phase.done => _Done(
