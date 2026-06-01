@@ -8,36 +8,49 @@ import '../../../core/observability/analytics_service.dart';
 import '../providers/session_providers.dart';
 
 /// The heart of the app: fomo vs jomo. Picking creates a real session row.
-class VibeScreen extends ConsumerWidget {
+class VibeScreen extends ConsumerStatefulWidget {
   const VibeScreen({super.key});
 
-  Future<void> _pick(BuildContext context, WidgetRef ref, String vibe) async {
+  @override
+  ConsumerState<VibeScreen> createState() => _VibeScreenState();
+}
+
+class _VibeScreenState extends ConsumerState<VibeScreen> {
+  // True once the user taps a vibe card — prevents the session-restore
+  // listener from overriding the navigation to /decide.
+  bool _picked = false;
+
+  Future<void> _pick(String vibe) async {
+    if (_picked) return;
+    setState(() => _picked = true);
     HapticFeedback.heavyImpact();
     final city = ref.read(cityProvider);
-    final err = await ref.read(activeSessionProvider.notifier).start(vibe, city: city);
+    final err =
+        await ref.read(activeSessionProvider.notifier).start(vibe, city: city);
     if (err != null) {
-      if (context.mounted) {
+      if (mounted) {
+        setState(() => _picked = false);
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(err)));
       }
       return;
     }
     AnalyticsService.vibePicked(vibe: vibe);
-    if (context.mounted) context.go('/decide');
+    if (mounted) context.go('/decide');
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     // Watch FIRST — this initialises ActiveSessionNotifier and triggers
     // _tryRestore(). Must happen before any early return or the notifier
     // never starts and sessionRestoredProvider stays false forever.
     final session = ref.watch(activeSessionProvider);
     final restored = ref.watch(sessionRestoredProvider);
 
-    // Always wire the listener so we catch the session appearing after
-    // the user picks a vibe (or after restore completes).
+    // Listener only routes to /menu for RESTORED sessions.
+    // Fresh picks are handled by _pick() directly; _picked guards this.
     ref.listen(activeSessionProvider, (_, next) {
-      if (next != null && context.mounted) context.go('/menu');
+      if (next != null && !_picked && mounted) context.go('/menu');
     });
 
     // While restore is in flight — show a subtle loading state, not pure black.
@@ -48,10 +61,10 @@ class VibeScreen extends ConsumerWidget {
       );
     }
 
-    // Restore done + session exists → go to menu without showing picker.
-    if (session != null) {
+    // Restore done + session exists → go to menu (only if user didn't just pick).
+    if (session != null && !_picked) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) context.go('/menu');
+        if (mounted) context.go('/menu');
       });
       return const Scaffold(backgroundColor: TromblColors.bg);
     }
@@ -79,7 +92,7 @@ class VibeScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               // City chip
               GestureDetector(
-                onTap: () => _showCityPicker(context, ref, city),
+                onTap: () => _showCityPicker(city),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -90,8 +103,7 @@ class VibeScreen extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('📍',
-                          style: TextStyle(fontSize: 12)),
+                      const Text('📍', style: TextStyle(fontSize: 12)),
                       const SizedBox(width: 4),
                       Text(
                         city ?? 'set city',
@@ -110,7 +122,7 @@ class VibeScreen extends ConsumerWidget {
                 title: 'fomo',
                 sub: 'i want everything',
                 accent: TromblColors.fomo,
-                onTap: () => _pick(context, ref, 'fomo'),
+                onTap: () => _pick('fomo'),
               ),
               const SizedBox(height: 14),
               _VibeCard(
@@ -118,7 +130,7 @@ class VibeScreen extends ConsumerWidget {
                 title: 'jomo',
                 sub: 'i want nothing',
                 accent: TromblColors.jomo,
-                onTap: () => _pick(context, ref, 'jomo'),
+                onTap: () => _pick('jomo'),
               ),
               const Spacer(),
             ],
@@ -128,7 +140,7 @@ class VibeScreen extends ConsumerWidget {
     );
   }
 
-  void _showCityPicker(BuildContext context, WidgetRef ref, String? current) {
+  void _showCityPicker(String? current) {
     final ctrl = TextEditingController(text: current ?? '');
     showModalBottomSheet(
       context: context,
@@ -179,20 +191,22 @@ class VibeScreen extends ConsumerWidget {
                 ),
                 onSubmitted: (v) async {
                   final city = v.trim();
+                  final nav = Navigator.of(context);
                   if (city.isNotEmpty) {
                     await ref.read(cityProvider.notifier).setCity(city);
                   }
-                  if (context.mounted) Navigator.of(context).pop();
+                  if (mounted) nav.pop();
                 },
               ),
               const SizedBox(height: 14),
               GestureDetector(
                 onTap: () async {
                   final city = ctrl.text.trim();
+                  final nav = Navigator.of(context);
                   if (city.isNotEmpty) {
                     await ref.read(cityProvider.notifier).setCity(city);
                   }
-                  if (context.mounted) Navigator.of(context).pop();
+                  if (mounted) nav.pop();
                 },
                 child: Container(
                   width: double.infinity,
