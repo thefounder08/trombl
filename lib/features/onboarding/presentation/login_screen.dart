@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -143,7 +142,8 @@ class LoginScreen extends HookConsumerWidget {
                 style: const TextStyle(fontSize: 13.5, color: TromblColors.textSub, height: 1.5),
               ),
               const SizedBox(height: 28),
-              if (kDebugMode) ...[
+              // TODO: restore kDebugMode guard before release
+              if (true) ...[
                 _PrimaryButton(
                   label: '⚡ dev skip',
                   onTap: loading.value ? null : () async {
