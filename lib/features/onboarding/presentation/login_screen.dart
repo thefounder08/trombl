@@ -12,8 +12,6 @@ import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../vibe/providers/session_providers.dart';
 
-// Web redirect URL — browser can't open io.trombl:// deep links.
-const _kWebRedirectUrl = 'https://trombl.netlify.app/login';
 
 class LoginScreen extends HookConsumerWidget {
   const LoginScreen({super.key});
@@ -40,8 +38,9 @@ class LoginScreen extends HookConsumerWidget {
       try {
         await ref.read(supabaseProvider).auth.signInWithOtp(
               email: raw,
-              emailRedirectTo:
-                  kIsWeb ? _kWebRedirectUrl : 'io.trombl://login-callback',
+              // No emailRedirectTo — forces Supabase to send the 6-digit OTP
+              // code only. Magic-link deep-linking is handled by the app router
+              // when the user enters the code manually.
             );
         sentEmail.value = raw;
         sent.value = true;
