@@ -18,7 +18,7 @@ import '../domain/pick_fallback.dart';
 import '../domain/pick_prompt_builder.dart';
 import '../providers/decide_providers.dart';
 
-enum _Phase { fork, loading, pick }
+enum _Phase { fork, loading, pick, done }
 
 class DecideScreen extends ConsumerStatefulWidget {
   const DecideScreen({super.key});
@@ -76,7 +76,8 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       case Success(:final data):
         pick = _parseResponse(data, session.vibe, session.id);
       case Failure():
-        pick = PickFallback.get(session.vibe, now.hour, session.id);
+        pick = PickFallback.get(session.vibe, now.hour, session.id,
+            rerollCount: _rerollCount);
     }
 
     // Persist to DB (fire-and-forget; error doesn't block the pick)
@@ -118,9 +119,9 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
 
     unawaited(ref.read(decideRepositoryProvider).markAccepted(pick.id));
 
-    // Solo picks — no external app, just confirm and go
+    // Solo picks — show warm confirmation before navigating to menu.
     if (pick.tag == 'solo') {
-      if (mounted) context.go('/menu');
+      if (mounted) setState(() => _phase = _Phase.done);
       return;
     }
 
@@ -171,7 +172,8 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
         tag: tag,
       );
     } catch (_) {
-      return PickFallback.get(vibe, DateTime.now().hour, sessionId);
+      return PickFallback.get(vibe, DateTime.now().hour, sessionId,
+          rerollCount: _rerollCount);
     }
   }
 
@@ -207,6 +209,12 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               onBack: () => context.go('/vibe'),
             ),
           _Phase.loading => _Loading(vibe: session.vibe),
+          _Phase.done => _Done(
+              pick: _currentPick!,
+              vibe: session.vibe,
+              accent: accent,
+              onContinue: () => context.go('/menu'),
+            ),
           _Phase.pick => _Pick(
               pick: _currentPick!,
               vibe: session.vibe,
@@ -225,6 +233,97 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               }),
             ),
         },
+      ),
+    );
+  }
+}
+
+// ─── Done screen (solo pick confirmed) ───────────────────────────────────────
+
+class _Done extends StatefulWidget {
+  const _Done({
+    required this.pick,
+    required this.vibe,
+    required this.accent,
+    required this.onContinue,
+  });
+  final AiPick pick;
+  final String vibe;
+  final Color accent;
+  final VoidCallback onContinue;
+
+  @override
+  State<_Done> createState() => _DoneState();
+}
+
+class _DoneState extends State<_Done> {
+  @override
+  void initState() {
+    super.initState();
+    // Auto-navigate to menu after 2.5 s so the user gets a moment to read.
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted) widget.onContinue();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Spacer(),
+          Text(
+            widget.vibe == 'fomo' ? '🔥' : '🛌',
+            style: const TextStyle(fontSize: 40),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            widget.pick.pickText,
+            style: const TextStyle(
+              fontFamily: TromblText.serif,
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: TromblColors.text,
+              height: 1.15,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'noted. go do it.',
+            style: TextStyle(
+              color: widget.accent,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              fontFamily: TromblText.sans,
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: widget.onContinue,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: TromblColors.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: TromblColors.border),
+              ),
+              child: const Text(
+                'open trombl →',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: TromblColors.textSub,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
