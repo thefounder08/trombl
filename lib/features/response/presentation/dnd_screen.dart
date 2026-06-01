@@ -50,7 +50,7 @@ class DndScreen extends StatelessWidget {
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    context.go('/menu');
+                    context.go('/home');
                   },
                   child: Container(
                     width: double.infinity,

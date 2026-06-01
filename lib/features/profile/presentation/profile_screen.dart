@@ -216,8 +216,8 @@ class ProfileScreen extends ConsumerWidget {
                         Row(
                           children: [
                             GestureDetector(
-                              onTap: () => context.go('/menu'),
-                              child: const Text('← menu',
+                              onTap: () => context.go('/home'),
+                              child: const Text('← home',
                                   style: TextStyle(
                                       color: TromblColors.textSub)),
                             ),

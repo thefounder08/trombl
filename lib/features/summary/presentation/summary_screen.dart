@@ -64,7 +64,7 @@ class SummaryScreen extends ConsumerWidget {
                 label: 'done for now',
                 onTap: () {
                   HapticFeedback.mediumImpact();
-                  context.go('/menu');
+                  context.go('/home');
                 },
               ),
               const SizedBox(height: 12),

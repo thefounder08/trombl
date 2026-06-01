@@ -271,7 +271,7 @@ class _ConfirmedView extends StatelessWidget {
             const SizedBox(height: 10),
           ],
           GestureDetector(
-            onTap: () => context.go('/menu'),
+            onTap: () => context.go('/home'),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16),

@@ -69,7 +69,7 @@ class _JoinPlanScreenState extends ConsumerState<JoinPlanScreen> {
             children: [
               GestureDetector(
                 onTap: () =>
-                    context.canPop() ? context.pop() : context.go('/menu'),
+                    context.canPop() ? context.pop() : context.go('/home'),
                 child: const Text('← back',
                     style: TextStyle(
                         color: TromblColors.textMuted, fontSize: 13)),

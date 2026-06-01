@@ -147,7 +147,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     if (result == ActionResult.dndInternal) {
       context.push('/dnd');
     } else {
-      context.go('/menu');
+      context.go('/home');
     }
   }
 
@@ -229,7 +229,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               pick: _currentPick!,
               vibe: session.vibe,
               accent: accent,
-              onContinue: () => context.go('/menu'),
+              onContinue: () => context.go('/home'),
             ),
           _Phase.pick => _Pick(
               pick: _currentPick!,

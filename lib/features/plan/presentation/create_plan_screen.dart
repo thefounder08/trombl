@@ -220,7 +220,7 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
             children: [
               // Back
               GestureDetector(
-                onTap: () { HapticFeedback.lightImpact(); context.go('/menu'); },
+                onTap: () { HapticFeedback.lightImpact(); context.go('/home'); },
                 child: const Text(
                   '← back',
                   style: TextStyle(
@@ -380,8 +380,8 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
                 const SizedBox(height: 10),
 
                 _ShareButton(
-                  label: 'back to menu',
-                  onTap: () => context.go('/menu'),
+                  label: 'back to home',
+                  onTap: () => context.go('/home'),
                 ),
               ],
             ],

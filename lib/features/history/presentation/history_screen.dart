@@ -40,7 +40,7 @@ class HistoryScreen extends ConsumerWidget {
                   GestureDetector(
                     onTap: () => context.canPop()
                         ? context.pop()
-                        : context.go('/menu'),
+                        : context.go('/home'),
                     child: const Text('← back',
                         style: TextStyle(
                             color: TromblColors.textMuted, fontSize: 13)),

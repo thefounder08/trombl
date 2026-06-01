@@ -47,6 +47,17 @@ class MenuScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
+                      GestureDetector(
+                        onTap: () => context.go('/home'),
+                        child: const Padding(
+                          padding: EdgeInsets.only(right: 12),
+                          child: Text('← home',
+                              style: TextStyle(
+                                  color: TromblColors.textMuted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500)),
+                        ),
+                      ),
                       _VibeChip(
                         vibe: vibe,
                         accent: accent,

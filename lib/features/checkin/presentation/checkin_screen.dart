@@ -28,7 +28,7 @@ class CheckinScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               GestureDetector(
-                onTap: () => context.go('/menu'),
+                onTap: () => context.go('/home'),
                 child: const Text(
                   '← back',
                   style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
