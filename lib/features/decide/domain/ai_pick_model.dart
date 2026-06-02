@@ -15,6 +15,7 @@ class AiPick {
     this.pickHour,
     this.pickDay,
     this.weatherCondition,
+    this.done,
   });
 
   final String id;
@@ -31,6 +32,8 @@ class AiPick {
   final int? pickHour;
   final String? pickDay;
   final String? weatherCondition;
+  /// null = not answered, true = confirmed done, false = confirmed didn't do it
+  final bool? done;
 
   factory AiPick.fromJson(Map<String, dynamic> json) => AiPick(
         id: json['id'] as String,
@@ -49,6 +52,7 @@ class AiPick {
         pickHour: json['pick_hour'] as int?,
         pickDay: json['pick_day'] as String?,
         weatherCondition: json['weather_condition'] as String?,
+        done: json['done'] as bool?,
       );
 
   AiPick copyWith({
@@ -59,6 +63,7 @@ class AiPick {
     int? pickHour,
     String? pickDay,
     String? weatherCondition,
+    bool? done,
   }) =>
       AiPick(
         id: id ?? this.id,
@@ -75,5 +80,6 @@ class AiPick {
         pickHour: pickHour ?? this.pickHour,
         pickDay: pickDay ?? this.pickDay,
         weatherCondition: weatherCondition ?? this.weatherCondition,
+        done: done ?? this.done,
       );
 }

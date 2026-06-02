@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
+import '../../decide/domain/ai_pick_model.dart';
+import '../../decide/providers/decide_providers.dart';
 import '../../plans/providers/plan_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/home_providers.dart';
@@ -202,9 +204,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               _Zone3(
                 myPlans: myPlans,
                 uid: uid,
-                continuity: greetingAsync.value != null
-                    ? buildContinuity(greetingAsync.value!)
-                    : null,
+                greetingData: greetingAsync.value,
               ),
             ],
           ),
@@ -266,18 +266,25 @@ class _Zone3 extends ConsumerWidget {
   const _Zone3({
     required this.myPlans,
     required this.uid,
-    required this.continuity,
+    required this.greetingData,
   });
   final AsyncValue<List<Plan>> myPlans;
   final String? uid;
-  final String? continuity;
+  final HomeGreetingData? greetingData;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final data = greetingData;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Plans
+        // ── Pending check-ins ────────────────────────────────────────────────
+        if (data != null && data.pendingCheckins.isNotEmpty) ...[
+          _CheckInSection(picks: data.pendingCheckins),
+          const SizedBox(height: 28),
+        ],
+
+        // ── Plans ────────────────────────────────────────────────────────────
         myPlans.when(
           loading: () => const SizedBox.shrink(),
           error: (_, __) => const SizedBox.shrink(),
@@ -307,17 +314,10 @@ class _Zone3 extends ConsumerWidget {
           },
         ),
 
-        // Continuity line
-        if (continuity != null) ...[
-          Text(
-            continuity!,
-            style: const TextStyle(
-              color: TromblColors.textMuted,
-              fontSize: 13,
-              fontFamily: TromblText.sans,
-            ),
-          ),
-          const SizedBox(height: 16),
+        // ── Recent picks strip ───────────────────────────────────────────────
+        if (data != null && data.recentAccepted.isNotEmpty) ...[
+          _RecentStrip(picks: data.recentAccepted.take(3).toList()),
+          const SizedBox(height: 20),
         ],
 
         // Profile teaser
@@ -347,6 +347,239 @@ class _Zone3 extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─── Recent picks strip ───────────────────────────────────────────────────────
+
+class _RecentStrip extends StatelessWidget {
+  const _RecentStrip({required this.picks});
+  final List<AiPick> picks;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'WHAT YOU\'VE BEEN UP TO',
+              style: TextStyle(
+                color: TromblColors.textMuted,
+                fontSize: 9,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w700,
+                fontFamily: TromblText.sans,
+              ),
+            ),
+            GestureDetector(
+              onTap: () => GoRouter.of(context).push('/history'),
+              child: const Text(
+                'see all →',
+                style: TextStyle(
+                  color: TromblColors.textMuted,
+                  fontSize: 11,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...picks.map((p) => _RecentPickRow(pick: p)),
+      ],
+    );
+  }
+}
+
+class _RecentPickRow extends StatelessWidget {
+  const _RecentPickRow({required this.pick});
+  final AiPick pick;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = TromblColors.accentFor(pick.vibe);
+    final timeLabel = relativePickTime(pick.createdAt);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Text(
+            vibeEmoji(pick.vibe),
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              pick.pickText,
+              style: TextStyle(
+                color: accent.withValues(alpha: 0.85),
+                fontSize: 13,
+                fontFamily: TromblText.sans,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (timeLabel.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Text(
+              timeLabel,
+              style: const TextStyle(
+                color: TromblColors.textMuted,
+                fontSize: 11,
+                fontFamily: TromblText.sans,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Check-in section ─────────────────────────────────────────────────────────
+
+class _CheckInSection extends ConsumerStatefulWidget {
+  const _CheckInSection({required this.picks});
+  final List<AiPick> picks;
+
+  @override
+  ConsumerState<_CheckInSection> createState() => _CheckInSectionState();
+}
+
+class _CheckInSectionState extends ConsumerState<_CheckInSection> {
+  // IDs dismissed locally so the card vanishes instantly without a full reload.
+  final Set<String> _dismissed = {};
+
+  Future<void> _answer(AiPick pick, bool done) async {
+    HapticFeedback.selectionClick();
+    setState(() => _dismissed.add(pick.id));
+    final repo = ref.read(decideRepositoryProvider);
+    await repo.markDone(pick.id, done: done);
+    // Invalidate so the provider re-fetches on next visit.
+    ref.invalidate(homeGreetingProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = widget.picks.where((p) => !_dismissed.contains(p.id)).toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'OPEN LOOPS',
+          style: TextStyle(
+            color: TromblColors.textMuted,
+            fontSize: 9,
+            letterSpacing: 1.5,
+            fontWeight: FontWeight.w700,
+            fontFamily: TromblText.sans,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...visible.map((p) => _CheckInCard(pick: p, onAnswer: _answer)),
+      ],
+    );
+  }
+}
+
+class _CheckInCard extends StatelessWidget {
+  const _CheckInCard({required this.pick, required this.onAnswer});
+  final AiPick pick;
+  final void Function(AiPick, bool) onAnswer;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = TromblColors.accentFor(pick.vibe);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: TromblColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'did you actually ${pick.pickText.toLowerCase()}?',
+            style: const TextStyle(
+              color: TromblColors.text,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              fontFamily: TromblText.sans,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _AnswerBtn(
+                label: 'yeah, did it',
+                accent: accent,
+                filled: true,
+                onTap: () => onAnswer(pick, true),
+              ),
+              const SizedBox(width: 8),
+              _AnswerBtn(
+                label: 'nah',
+                accent: TromblColors.textMuted,
+                filled: false,
+                onTap: () => onAnswer(pick, false),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnswerBtn extends StatelessWidget {
+  const _AnswerBtn({
+    required this.label,
+    required this.accent,
+    required this.filled,
+    required this.onTap,
+  });
+  final String label;
+  final Color accent;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: filled ? accent.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: accent.withValues(alpha: filled ? 0.3 : 0.2),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: filled ? accent : TromblColors.textSub,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            fontFamily: TromblText.sans,
+          ),
+        ),
+      ),
     );
   }
 }

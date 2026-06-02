@@ -89,6 +89,38 @@ class DecideRepository {
     }
   }
 
+  Future<void> markDone(String pickId, {required bool done}) async {
+    if (pickId.isEmpty) return;
+    try {
+      await _client.from('ai_picks').update({'done': done}).eq('id', pickId);
+    } catch (_) {}
+  }
+
+  /// Accepted picks from the last 36 hours where done is still null — the
+  /// open loops that need a check-in nudge.
+  Future<List<AiPick>> pendingCheckins({int limit = 3}) async {
+    final uid = _uid;
+    if (uid == null) return [];
+    try {
+      final cutoff =
+          DateTime.now().subtract(const Duration(hours: 36)).toUtc().toIso8601String();
+      final rows = await _client
+          .from('ai_picks')
+          .select()
+          .eq('user_id', uid)
+          .eq('accepted', true)
+          .isFilter('done', null)
+          .gte('created_at', cutoff)
+          .order('created_at', ascending: false)
+          .limit(limit);
+      return (rows as List)
+          .map((r) => AiPick.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Load all history signals needed before building the pick prompt.
   Future<DecideContext> loadContext() async {
     try {

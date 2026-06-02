@@ -9,9 +9,10 @@ typedef HomeGreetingData = ({
   String? firstName,
   List<Session> recentSessions,
   List<AiPick> recentAccepted,
+  List<AiPick> pendingCheckins,
 });
 
-/// Fetches all data needed for the home greeting. No LLM calls — templated only.
+/// Fetches all data needed for the home. No LLM calls — templated only.
 final homeGreetingProvider =
     FutureProvider.autoDispose<HomeGreetingData>((ref) async {
   final sessionRepo = ref.watch(sessionRepositoryProvider);
@@ -20,15 +21,18 @@ final homeGreetingProvider =
   final profileFuture = sessionRepo.getProfile();
   final sessionsFuture = sessionRepo.recentSessions(days: 7);
   final picksFuture = decideRepo.recentAiPicks(limit: 10);
+  final checkinsFuture = decideRepo.pendingCheckins(limit: 3);
 
   final profile = await profileFuture;
   final sessions = await sessionsFuture;
   final picks = await picksFuture;
+  final checkins = await checkinsFuture;
 
   return (
     firstName: _firstName(profile?.displayName),
     recentSessions: sessions,
-    recentAccepted: picks.where((p) => p.accepted).toList(),
+    recentAccepted: picks.where((p) => p.accepted && !p.rerolled).toList(),
+    pendingCheckins: checkins,
   );
 });
 
@@ -37,7 +41,7 @@ String? _firstName(String? displayName) {
   return displayName.split(' ').first;
 }
 
-/// Builds the one-line greeting shown in Zone 1.
+/// Builds the one-line greeting for Zone 1.
 /// Uses only real data — never fakes a pattern that doesn't exist.
 String buildGreeting(HomeGreetingData data, String currentVibe) {
   final now = DateTime.now();
@@ -52,6 +56,18 @@ String buildGreeting(HomeGreetingData data, String currentVibe) {
 
   final name = data.firstName?.toLowerCase() ?? '';
   final nameStr = name.isNotEmpty ? ', $name' : '';
+
+  // --- Check for a very recent accepted pick (last 6 hours) ---
+  final recentCutoff = now.subtract(const Duration(hours: 6));
+  final lastPick = data.recentAccepted.isNotEmpty
+      ? data.recentAccepted.first
+      : null;
+
+  if (lastPick != null &&
+      lastPick.createdAt != null &&
+      lastPick.createdAt!.isAfter(recentCutoff)) {
+    return _pickGreeting(lastPick, nameStr, tod);
+  }
 
   // Sessions from BEFORE today (to avoid counting today's fresh pick)
   final today = DateTime(now.year, now.month, now.day);
@@ -88,24 +104,62 @@ String buildGreeting(HomeGreetingData data, String currentVibe) {
     return '$tod$nameStr. weekend fomo energy.';
   }
 
-  // Simple returning user
   return '$tod$nameStr.';
 }
 
-/// Returns a one-line continuity note referencing yesterday's session, or null.
-String? buildContinuity(HomeGreetingData data) {
-  if (data.recentSessions.isEmpty) return null;
+/// Produces a greeting line referencing a real recent pick.
+String _pickGreeting(AiPick pick, String nameStr, String tod) {
+  final v = pick.vibe;
+  final text = pick.pickText.toLowerCase();
 
-  final now = DateTime.now();
-  final yesterday = DateTime(now.year, now.month, now.day - 1);
-  final last = data.recentSessions.first;
-  final d = last.startedAt;
-  if (d == null) return null;
-
-  final lastDay = DateTime(d.year, d.month, d.day);
-  if (lastDay == yesterday) {
-    return 'last night was ${last.vibe}.';
+  if (v == 'jomo') {
+    if (text.contains('coffee') || text.contains('tea')) {
+      return '$tod$nameStr. slow brew vibes — still winding down?';
+    }
+    if (text.contains('walk') || text.contains('outside') || text.contains('fresh air')) {
+      return '$tod$nameStr. you chose outside. nice.';
+    }
+    if (text.contains('sleep') || text.contains('nap') || text.contains('rest')) {
+      return '$tod$nameStr. you went full rest mode.';
+    }
+    return '$tod$nameStr. earlier you went jomo — still winding down?';
   }
 
-  return null;
+  if (v == 'fomo') {
+    if (text.contains('walk') || text.contains('outside') || text.contains('run')) {
+      return '$tod$nameStr. you got outside earlier. keeping the energy?';
+    }
+    if (text.contains('friend') || text.contains('squad') || text.contains('people')) {
+      return '$tod$nameStr. social mode was on. what\'s next?';
+    }
+    return '$tod$nameStr. you picked something — ready for more?';
+  }
+
+  return '$tod$nameStr. you made a pick earlier.';
 }
+
+/// Relative time label: "just now", "this morning", "tonight", "yesterday"
+String relativePickTime(DateTime? dt) {
+  if (dt == null) return '';
+  final now = DateTime.now();
+  final diff = now.difference(dt);
+  if (diff.inMinutes < 60) return 'just now';
+
+  final todayStart = DateTime(now.year, now.month, now.day);
+  final pickDay = DateTime(dt.year, dt.month, dt.day);
+
+  if (pickDay == todayStart) {
+    final h = dt.hour;
+    if (h < 12) return 'this morning';
+    if (h < 17) return 'this afternoon';
+    return 'tonight';
+  }
+
+  final yesterday = todayStart.subtract(const Duration(days: 1));
+  if (pickDay == yesterday) return 'yesterday';
+
+  return '${diff.inDays}d ago';
+}
+
+/// Vibe emoji prefix for a pick row.
+String vibeEmoji(String vibe) => vibe == 'jomo' ? '🌙' : '⚡';
