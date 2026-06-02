@@ -11,6 +11,10 @@ class AiPick {
     this.rerolled = false,
     this.accepted = false,
     this.createdAt,
+    this.moodText,
+    this.pickHour,
+    this.pickDay,
+    this.weatherCondition,
   });
 
   final String id;
@@ -23,6 +27,10 @@ class AiPick {
   final bool rerolled;
   final bool accepted;
   final DateTime? createdAt;
+  final String? moodText;
+  final int? pickHour;
+  final String? pickDay;
+  final String? weatherCondition;
 
   factory AiPick.fromJson(Map<String, dynamic> json) => AiPick(
         id: json['id'] as String,
@@ -37,9 +45,22 @@ class AiPick {
         createdAt: json['created_at'] != null
             ? DateTime.tryParse(json['created_at'] as String)
             : null,
+        moodText: json['mood_text'] as String?,
+        pickHour: json['pick_hour'] as int?,
+        pickDay: json['pick_day'] as String?,
+        weatherCondition: json['weather_condition'] as String?,
       );
 
-  AiPick copyWith({String? id, bool? rerolled, bool? accepted}) => AiPick(
+  AiPick copyWith({
+    String? id,
+    bool? rerolled,
+    bool? accepted,
+    String? moodText,
+    int? pickHour,
+    String? pickDay,
+    String? weatherCondition,
+  }) =>
+      AiPick(
         id: id ?? this.id,
         userId: userId,
         sessionId: sessionId,
@@ -50,5 +71,9 @@ class AiPick {
         rerolled: rerolled ?? this.rerolled,
         accepted: accepted ?? this.accepted,
         createdAt: createdAt,
+        moodText: moodText ?? this.moodText,
+        pickHour: pickHour ?? this.pickHour,
+        pickDay: pickDay ?? this.pickDay,
+        weatherCondition: weatherCondition ?? this.weatherCondition,
       );
 }

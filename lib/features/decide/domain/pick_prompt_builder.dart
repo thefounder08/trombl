@@ -3,10 +3,17 @@ import 'ai_pick_model.dart';
 
 enum _Depth { thin, some, rich }
 
-/// Builds the LLM prompt for a pick request. The prompt scales with how much
-/// history exists — see Scenarios 3, 4, 7, 8, 9 in the feature spec.
+/// Builds the LLM prompt for a pick request using a 4-tier constraint hierarchy.
+///
+/// Tier order (each tier overrides/constrains everything below it):
+///   1. PRIMARY DRIVERS  — mood text (most important) + exact time/day
+///   2. HARD FILTERS     — time-block rules, weather, location (eliminate bad answers)
+///   3. PERSONALIZERS    — history patterns, anti-repetition (enrich when available)
+///   4. USER-TOLD-ONLY   — energy/budget/state only from mood text, never assumed
+///
+/// The model (free Gemini Flash) is a weak reasoner — constraints must be explicit
+/// RULES in the prompt, not hopes the model will infer them.
 abstract final class PickPromptBuilder {
-  /// Returns (system, userPrompt) to pass to LlmRequest.
   static ({String system, String userPrompt}) build({
     required String vibe,
     required int hour,
@@ -14,8 +21,9 @@ abstract final class PickPromptBuilder {
     String? city,
     required int rerollCount,
     required DecideContext ctx,
-    required List<String> inSessionRejects, // picks rerolled this session
+    required List<String> inSessionRejects,
     String? moodText,
+    String? weatherCondition,
   }) {
     final depth = ctx.sessionCount <= 2
         ? _Depth.thin
@@ -36,29 +44,32 @@ abstract final class PickPromptBuilder {
         inSessionRejects: inSessionRejects,
         recentPicks: ctx.recentPicks,
         moodText: moodText,
+        weatherCondition: weatherCondition,
       ),
     );
   }
 
   static const _system = '''
 you are trom. pick ONE thing for the user to do right now.
-rules:
+
+HARD RULES — no exceptions:
 - respond with ONLY a valid JSON object. nothing before it. nothing after it.
-- all string values are lowercase
-- no markdown, no bullet points inside strings
-- no specific venue names (say "closest bar on maps" not a real bar name)
-- pick something they can do alone without others needing to reply
-- trom voice: short, punchy, honest, warm
-- never hedge ("maybe", "you might like") — be confident
+- NEVER ask a question back. mood in → decision out. this is absolute. asking a question is failure.
+- ONE pick only. no lists. no alternatives. one confident thing.
+- no hedging ("maybe", "you might like", "could try"). pick and commit.
+- no specific venue names — give methods ("closest bar on maps", not a real bar name)
+- all string values lowercase. no markdown. no bullets inside strings.
+- trom voice: short, punchy, honest, warm — like a text from a real friend, not an app.
+- the pick must be actionable given EVERY constraint in the user prompt.
 
 respond exactly this shape:
 {"pick":"<activity, 6 words max>","reason":"<why right now, 10 words max, trom voice>","tag":"<discover|squad|order in|rest|content|solo>"}
 
-tag guide:
+tags:
 - discover: find a place/event via maps or booking
 - squad: text or call someone
 - order in: food or delivery app
-- rest: quiet down, dnd, recharge, no-screen time
+- rest: wind down, sleep aids, recharge, quiet time
 - content: create or post something
 - solo: do it alone, no app needed
 ''';
@@ -74,72 +85,133 @@ tag guide:
     required List<String> inSessionRejects,
     required List<AiPick> recentPicks,
     String? moodText,
+    String? weatherCondition,
   }) {
     final buf = StringBuffer();
 
-    buf.writeln('vibe: $vibe');
-    buf.writeln('time: $dayOfWeek, ${_hourLabel(hour)}');
-    buf.writeln('city: ${city ?? "unknown"}');
-
-    // User mood context — respond with a decision, never a question back
+    // ─── TIER 1: Primary drivers — mood + time ────────────────────────────────
     if (moodText != null && moodText.isNotEmpty) {
-      buf.writeln('user mood: $moodText');
-      buf.writeln('pick must match or complement this mood. respond with a decision only — no follow-up questions.');
+      buf.writeln('[MOOD — primary signal, outweighs everything else]');
+      buf.writeln('the user said: "$moodText"');
+      buf.writeln('respond to this specifically. it is the most important thing you know about them right now.');
+      buf.writeln();
     }
 
-    // Time constraint (Scenario 3)
-    final constraint = _timeConstraint(hour, vibe);
-    if (constraint.isNotEmpty) buf.writeln('constraint: $constraint');
+    buf.writeln('[TIME]');
+    buf.writeln('${dayOfWeek.toUpperCase()}, ${_hourLabel(hour)} — ${_dayType(dayOfWeek)}');
+    buf.writeln();
 
-    // Reroll context (Scenario 1)
-    if (rerollCount == 1) {
-      buf.writeln('note: second pick requested — vary from the first.');
-    } else if (rerollCount >= 2) {
-      buf.writeln(
-          'note: they have rerolled $rerollCount times. acknowledge in reason with "ok not feeling it —"');
+    // ─── TIER 2: Hard filters — time block, weather, location ─────────────────
+    buf.writeln('[TIME BLOCK RULES — obey absolutely, no exceptions]');
+    buf.writeln(_timeBlock(hour));
+    buf.writeln();
+
+    final isOutdoorBlocked = _isOutdoorBlocked(hour, weatherCondition);
+    if (isOutdoorBlocked) {
+      buf.writeln('[OUTDOOR BLOCK]');
+      if (weatherCondition != null &&
+          weatherCondition != 'clear' &&
+          weatherCondition != 'cloudy') {
+        buf.writeln("weather: $weatherCondition outside — do NOT suggest outdoor activities.");
+      }
+      // time-of-day outdoor block is already in the time block rules above
+      buf.writeln();
     }
 
-    // In-session rejects for anti-repetition (Scenario 4)
-    if (inSessionRejects.isNotEmpty) {
-      buf.writeln('avoid (already rerolled this session): ${inSessionRejects.join(", ")}');
+    if (city != null && city.isNotEmpty) {
+      buf.writeln('[LOCATION]');
+      buf.writeln("city: $city — give a method not a venue name (e.g. \"closest open spot on maps, don't scroll past #3\")");
+      buf.writeln();
     }
 
+    // ─── TIER 3: Personalizers — history, anti-repetition ────────────────────
     switch (depth) {
       case _Depth.thin:
-        buf.writeln('history: thin (${sessionCount == 0 ? "first ever session" : "$sessionCount sessions"})');
         if (sessionCount == 0) {
-          // Scenario 9 — honest cold start
-          buf.writeln(
-              'cold start: start the reason with "we just met so i\'m guessing —"');
+          buf.writeln('[HISTORY]');
+          buf.writeln('first ever session — no history exists yet.');
+          buf.writeln('start the reason with: "we just met so i\'m guessing —"');
+          buf.writeln();
         }
 
       case _Depth.some:
-        final pattern = _patternSummary(recentPicks);
-        if (pattern.isNotEmpty) buf.writeln('pattern: $pattern');
-        buf.writeln('note: reference the pattern lightly in the reason if relevant.');
-
       case _Depth.rich:
         final pattern = _patternSummary(recentPicks);
-        if (pattern.isNotEmpty) buf.writeln('pattern: $pattern');
-        buf.writeln(
-            'note: trom knows this person — can predict and reference their habits.');
+        if (pattern.isNotEmpty) {
+          buf.writeln('[HISTORY]');
+          buf.writeln(pattern);
+          if (depth == _Depth.rich) {
+            buf.writeln('trom knows this person — can lightly reference their pattern in the reason if relevant.');
+          }
+          buf.writeln();
+        }
     }
 
-    buf.writeln('\npick something specific and actionable right now.');
+    if (inSessionRejects.isNotEmpty) {
+      buf.writeln('[ALREADY REJECTED THIS SESSION — do not suggest these]');
+      buf.writeln(inSessionRejects.join(', '));
+      buf.writeln();
+    }
+
+    if (rerollCount == 1) {
+      buf.writeln('note: second pick — vary meaningfully from the first.');
+    } else if (rerollCount >= 2) {
+      buf.writeln('note: $rerollCount rerolls — acknowledge this in reason, start with "ok not feeling it —"');
+    }
+
+    // ─── TIER 4 implicit: only what the user stated ────────────────────────────
+    // (energy, budget, emotional state come ONLY from mood text above — never assumed)
+
+    // Vibe as fallback signal — least important, only matters if mood is empty
+    buf.writeln('[VIBE — fallback signal, only matters if no mood text above]');
+    buf.writeln('vibe: $vibe');
+    buf.writeln();
+
+    buf.writeln('pick exactly one thing. specific. actionable. valid against every constraint above.');
     return buf.toString().trim();
   }
 
-  static String _timeConstraint(int hour, String vibe) {
-    if (hour >= 23 || hour < 5) {
-      return 'late night — most things are closed. only solo or home-based picks.';
+  // ─── Time block rules (Tier 2 hard filters) ───────────────────────────────
+
+  static String _timeBlock(int hour) {
+    if (hour >= 0 && hour < 5) {
+      return '''current block: 12am–5am — DEEP NIGHT
+DO NOT suggest (hard rules — no exceptions whatsoever):
+  - going outside or anywhere
+  - contacting people (they are asleep)
+  - high-energy activities
+  - errands, bars, clubs, restaurants, events
+ONLY suggest:
+  - wind-down techniques (dim lights, no screens, boring content)
+  - sleep aids (breathing exercises, lying in dark)
+  - quiet solo comfort (warm drink, quiet audio)
+if they say they can't sleep or want to do something: give real wind-down advice — NEVER "go for a walk" or "text someone"''';
     }
-    if (hour < 12) {
-      return 'morning — no nightlife, no bars. brunch, walk, daytime only.';
+    if (hour >= 5 && hour < 11) {
+      return '''current block: 5am–11am — morning
+ok: coffee, light movement, planning the day, gentle starts.
+do NOT suggest: bars, clubs, nightlife, heavy late-night activities.''';
     }
-    if (hour >= 21) {
-      return 'late evening — things winding down. no new big plans.';
+    if (hour >= 11 && hour < 17) {
+      return 'current block: 11am–5pm — daytime. flexible. outings, errands, productivity, food, social all valid.';
     }
-    return '';
+    if (hour >= 17 && hour < 22) {
+      return 'current block: 5pm–10pm — prime time. social, active, going out all valid.';
+    }
+    // 22–24
+    return '''current block: 10pm–12am — winding down
+low-key, home-leaning. light social ok.
+do NOT suggest starting anything big or late-night heavy plans.
+nudging toward wrapping up the evening.''';
+  }
+
+  static bool _isOutdoorBlocked(int hour, String? weather) {
+    if (hour >= 0 && hour < 5) return true; // deep night block handles this
+    if (weather == null) return false;
+    return weather == 'rainy' ||
+        weather == 'snowy' ||
+        weather == 'stormy' ||
+        weather == 'foggy';
   }
 
   static String _hourLabel(int hour) {
@@ -147,6 +219,12 @@ tag guide:
     final amPm = hour < 12 ? 'am' : 'pm';
     return '$h$amPm';
   }
+
+  static String _dayType(String dayOfWeek) => switch (dayOfWeek) {
+        'fri' || 'sat' => 'weekend — social/higher energy ok',
+        'sun' => 'sunday — easing into the week',
+        _ => 'weekday',
+      };
 
   static String _patternSummary(List<AiPick> picks) {
     if (picks.isEmpty) return '';

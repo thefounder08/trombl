@@ -28,6 +28,7 @@ dependencies:
   firebase_crashlytics: ^5.2.2
   package_info_plus: ^9.0.1
   shared_preferences: ^2.3.0
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_lints: ^4.0.0

@@ -38,12 +38,18 @@ class DecideRepository {
             'pick_text': pick.pickText,
             'reason_text': pick.reasonText,
             'tag': pick.tag,
+            if (pick.moodText != null && pick.moodText!.isNotEmpty)
+              'mood_text': pick.moodText,
+            if (pick.pickHour != null) 'pick_hour': pick.pickHour,
+            if (pick.pickDay != null) 'pick_day': pick.pickDay,
+            if (pick.weatherCondition != null)
+              'weather_condition': pick.weatherCondition,
           })
           .select()
           .single();
       return AiPick.fromJson(row);
     } catch (_) {
-      return pick; // fallback pick still works; just won't have a DB id
+      return pick;
     }
   }
 
@@ -52,8 +58,7 @@ class DecideRepository {
     try {
       await _client
           .from('ai_picks')
-          .update({'rerolled': true})
-          .eq('id', pickId);
+          .update({'rerolled': true}).eq('id', pickId);
     } catch (_) {}
   }
 
@@ -62,8 +67,7 @@ class DecideRepository {
     try {
       await _client
           .from('ai_picks')
-          .update({'accepted': true})
-          .eq('id', pickId);
+          .update({'accepted': true}).eq('id', pickId);
     } catch (_) {}
   }
 

@@ -70,6 +70,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
     }
 
     final city = ref.watch(cityProvider);
+    final suggested = _timeDefaultVibe();
 
     return Scaffold(
       body: SafeArea(
@@ -122,6 +123,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
                 title: 'fomo',
                 sub: 'i want everything',
                 accent: TromblColors.fomo,
+                suggested: suggested == 'fomo',
                 onTap: () => _pick('fomo'),
               ),
               const SizedBox(height: 14),
@@ -130,6 +132,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
                 title: 'jomo',
                 sub: 'i want nothing',
                 accent: TromblColors.jomo,
+                suggested: suggested == 'jomo',
                 onTap: () => _pick('jomo'),
               ),
               const Spacer(),
@@ -138,6 +141,16 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
         ),
       ),
     );
+  }
+
+  /// Returns trom's time-appropriate vibe suggestion.
+  /// Late night / early morning → jomo. Fri/Sat evening → fomo. Else: context-neutral fomo.
+  static String _timeDefaultVibe() {
+    final hour = DateTime.now().hour;
+    final weekday = DateTime.now().weekday; // 1=Mon … 7=Sun
+    if (hour >= 22 || hour < 10) return 'jomo';
+    if ((weekday == 5 || weekday == 6) && hour >= 17) return 'fomo';
+    return 'fomo';
   }
 
   void _showCityPicker(String? current) {
@@ -237,10 +250,12 @@ class _VibeCard extends StatelessWidget {
     required this.title,
     required this.sub,
     required this.accent,
+    required this.suggested,
     required this.onTap,
   });
   final String emoji, title, sub;
   final Color accent;
+  final bool suggested;
   final VoidCallback onTap;
 
   @override
@@ -252,23 +267,51 @@ class _VibeCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: TromblColors.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha:0.35)),
+          border: Border.all(
+            color: suggested
+                ? accent.withValues(alpha: 0.55)
+                : accent.withValues(alpha: 0.35),
+            width: suggested ? 1.5 : 1,
+          ),
         ),
         child: Row(
           children: [
             Text(emoji, style: const TextStyle(fontSize: 30)),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: TextStyle(
-                        color: accent, fontSize: 20, fontWeight: FontWeight.w800)),
-                Text(sub,
-                    style: const TextStyle(
-                        color: TromblColors.textSub, fontSize: 13)),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          color: accent,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800)),
+                  Text(sub,
+                      style: const TextStyle(
+                          color: TromblColors.textSub, fontSize: 13)),
+                ],
+              ),
             ),
+            if (suggested)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'trom rn',
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: TromblText.sans,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

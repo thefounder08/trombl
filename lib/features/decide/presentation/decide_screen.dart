@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/ai/models/llm_message.dart';
 import '../../../core/providers.dart';
+import '../../../core/services/weather_service.dart';
 import '../../../shared/result.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../menu/domain/action_engine.dart';
@@ -53,14 +54,17 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
     final dayOfWeek = days[now.weekday - 1];
 
-    // Load history context (graceful — returns empty on error)
-    final ctx = await ref.read(decideRepositoryProvider).loadContext();
-
     // Consume mood text (home screen may have set it)
     final mood = ref.read(moodInputProvider);
     if (mood != null) ref.read(moodInputProvider.notifier).state = null;
 
-    // Build prompt
+    // Load history + weather in parallel (both are graceful — return empty/null on error)
+    final contextFuture = ref.read(decideRepositoryProvider).loadContext();
+    final weatherFuture = WeatherService.getCondition(city);
+    final ctx = await contextFuture;
+    final weather = await weatherFuture;
+
+    // Build prompt with all 4 tiers
     final prompt = PickPromptBuilder.build(
       vibe: session.vibe,
       hour: now.hour,
@@ -70,9 +74,10 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       ctx: ctx,
       inSessionRejects: List.unmodifiable(_inSessionRejects),
       moodText: mood,
+      weatherCondition: weather,
     );
 
-    // Call LLM; fall back silently on any failure (Scenario 5)
+    // Call LLM; fall back silently on any failure (fallback also respects time rules)
     AiPick pick;
     final result = await ref.read(llmProvider).generate(
           LlmRequest(system: prompt.system, prompt: prompt.userPrompt),
@@ -85,6 +90,14 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
         pick = PickFallback.get(session.vibe, now.hour, session.id,
             rerollCount: _rerollCount);
     }
+
+    // Attach context so the learning loop records mood + time + weather
+    pick = pick.copyWith(
+      moodText: mood,
+      pickHour: now.hour,
+      pickDay: dayOfWeek,
+      weatherCondition: weather,
+    );
 
     // Persist to DB (fire-and-forget; error doesn't block the pick)
     final saved = await ref.read(decideRepositoryProvider).savePick(pick);
