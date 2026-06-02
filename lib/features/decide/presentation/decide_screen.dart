@@ -33,10 +33,24 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
   AiPick? _currentPick;
   int _rerollCount = 0;
   bool _actionLoading = false;
-  bool _autoStartChecked = false;
 
   // Tracks picks rerolled this session for in-prompt anti-repetition.
   final List<String> _inSessionRejects = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Check auto-start flag AFTER the first frame — modifying providers during
+    // build() is forbidden by Riverpod and throws StateNotifierListenerError.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final shouldStart = ref.read(decideShouldAutoStartProvider);
+      if (shouldStart) {
+        ref.read(decideShouldAutoStartProvider.notifier).state = false;
+        _requestPick();
+      }
+    });
+  }
 
   // ── Pick request ─────────────────────────────────────────────────────────────
 
@@ -215,16 +229,6 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     }
 
     final accent = TromblColors.accentFor(session.vibe);
-
-    // Auto-start when navigated from home via decideShouldAutoStartProvider
-    if (!_autoStartChecked) {
-      _autoStartChecked = true;
-      final shouldStart = ref.read(decideShouldAutoStartProvider);
-      if (shouldStart) {
-        ref.read(decideShouldAutoStartProvider.notifier).state = false;
-        WidgetsBinding.instance.addPostFrameCallback((_) => _requestPick());
-      }
-    }
 
     return Scaffold(
       backgroundColor: TromblColors.bg,
