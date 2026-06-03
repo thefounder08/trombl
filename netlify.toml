@@ -8,6 +8,9 @@
 
 [build.environment]
   FLUTTER_VERSION = "3.41.0"
+  # android/app/google-services.json contains a Firebase Android config key
+  # (AIza...) which is safe to be public — suppress Netlify's smart detection.
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 # SPA catch-all: every path serves index.html so GoRouter deep links work.
 [[redirects]]
