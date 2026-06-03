@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -217,17 +219,7 @@ class NotificationService {
 
   String _pick(List<String> list) => (List<String>.from(list)..shuffle()).first;
 
-  String _platform() {
-    // dart:io Platform is not accessible in web, so check via conditional.
-    try {
-      // ignore: do_not_use_environment
-      const isIOS = bool.fromEnvironment('dart.library.io') &&
-          !bool.fromEnvironment('dart.library.html');
-      return isIOS ? 'ios' : 'android';
-    } catch (_) {
-      return 'android';
-    }
-  }
+  String _platform() => Platform.isIOS ? 'ios' : 'android';
 
   static const _morningTitles = [
     "new day incoming 🔥", "it's a new day.", "trom is awake. are u?",
