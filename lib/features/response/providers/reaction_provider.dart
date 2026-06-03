@@ -16,6 +16,6 @@ final reactionProvider = FutureProvider.autoDispose
   ));
   return switch (result) {
     Success(:final data) => data,
-    Failure(:final error) => error,
+    Failure(:final error) => throw Exception(error),
   };
 });

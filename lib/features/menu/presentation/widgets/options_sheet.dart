@@ -146,6 +146,10 @@ class OptionsSheet extends ConsumerWidget {
     final session = ref.read(activeSessionProvider);
     if (session == null) return;
 
+    // Capture router + messenger before pop() unmounts this widget.
+    final router = GoRouter.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     Navigator.of(context).pop();
 
     // Pre-generate squad message before writing the pick row.
@@ -160,8 +164,7 @@ class OptionsSheet extends ConsumerWidget {
           tag: opt.tag,
         );
 
-    if (!context.mounted) return;
-
+    // context is unmounted after pop() — use captured references.
     switch (result) {
       case Success(:final data):
         AnalyticsService.optionSelected(
@@ -173,7 +176,7 @@ class OptionsSheet extends ConsumerWidget {
         ref.invalidate(checkinPicksProvider);
         // Store in activePickProvider so other widgets can read it.
         ref.read(activePickProvider.notifier).set(category, opt);
-        context.push('/response',
+        router.push('/response',
             extra: ResponseArgs(
               pick: data,
               vibe: vibe,
@@ -182,9 +185,7 @@ class OptionsSheet extends ConsumerWidget {
               tromMessage: tromMessage,
             ));
       case Failure(:final error):
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(error)));
     }
   }
 }
