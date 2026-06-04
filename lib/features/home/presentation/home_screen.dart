@@ -552,6 +552,7 @@ class _ActivitySheet extends ConsumerStatefulWidget {
 
 class _ActivitySheetState extends ConsumerState<_ActivitySheet> {
   final Set<String> _dismissed = {};
+  final Set<String> _menuDismissed = {};
 
   Future<void> _answer(AiPick pick, bool done) async {
     HapticFeedback.selectionClick();
@@ -561,12 +562,24 @@ class _ActivitySheetState extends ConsumerState<_ActivitySheet> {
     ref.invalidate(homeGreetingProvider);
   }
 
+  Future<void> _answerMenuPick(Pick pick, bool done) async {
+    HapticFeedback.selectionClick();
+    setState(() => _menuDismissed.add(pick.id));
+    await ref.read(sessionRepositoryProvider).setPickDone(pick.id, done);
+    ref.invalidate(homeGreetingProvider);
+  }
+
   @override
   Widget build(BuildContext context) {
     final pending = widget.greetingData.pendingCheckins
         .where((p) => !_dismissed.contains(p.id))
         .toList();
     final recent = widget.greetingData.recentAccepted.take(5).toList();
+    final todayPicks = widget.greetingData.todayPicks
+        .where((p) => !_menuDismissed.contains(p.id))
+        .toList();
+    final sessionVibe = ref.watch(activeSessionProvider)?.vibe ?? 'fomo';
+    final sessionAccent = TromblColors.accentFor(sessionVibe);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.55,
@@ -595,6 +608,26 @@ class _ActivitySheetState extends ConsumerState<_ActivitySheet> {
                 controller: scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                 children: [
+                  // ── Today's menu picks ──────────────────────────────────
+                  if (todayPicks.isNotEmpty) ...[
+                    const Text(
+                      'PICKED TODAY',
+                      style: TextStyle(
+                        color: TromblColors.textMuted,
+                        fontSize: 9,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: TromblText.sans,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...todayPicks.map((p) => _MenuPickCard(
+                          pick: p,
+                          accent: sessionAccent,
+                          onAnswer: _answerMenuPick,
+                        )),
+                    const SizedBox(height: 24),
+                  ],
                   if (pending.isNotEmpty) ...[
                     const Text(
                       'LOOSE ENDS',
@@ -794,6 +827,65 @@ class _AnswerBtn extends StatelessWidget {
             fontFamily: TromblText.sans,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Menu pick check-in card ─────────────────────────────────────────────────
+
+class _MenuPickCard extends StatelessWidget {
+  const _MenuPickCard({
+    required this.pick,
+    required this.accent,
+    required this.onAnswer,
+  });
+  final Pick pick;
+  final Color accent;
+  final void Function(Pick, bool) onAnswer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: TromblColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'did u actually ${pick.label.toLowerCase()}?',
+            style: const TextStyle(
+              color: TromblColors.text,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              fontFamily: TromblText.sans,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _AnswerBtn(
+                label: 'fr did it',
+                accent: accent,
+                filled: true,
+                onTap: () => onAnswer(pick, true),
+              ),
+              const SizedBox(width: 8),
+              _AnswerBtn(
+                label: 'nah',
+                accent: TromblColors.textMuted,
+                filled: false,
+                onTap: () => onAnswer(pick, false),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
