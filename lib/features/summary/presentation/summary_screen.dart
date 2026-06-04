@@ -48,7 +48,7 @@ class SummaryScreen extends ConsumerWidget {
 
               // Sub-line with actual numbers
               Text(
-                '${args.done} of ${args.total} picked things actually done.',
+                '${args.done} out of ${args.total} actually done. respect.',
                 style: const TextStyle(
                   fontFamily: TromblText.sans,
                   fontSize: 14,
@@ -61,7 +61,7 @@ class SummaryScreen extends ConsumerWidget {
 
               // "done for now" — stay in today's session
               _PrimaryButton(
-                label: 'done for now',
+                label: "i'm good for now",
                 onTap: () {
                   HapticFeedback.mediumImpact();
                   context.go('/home');

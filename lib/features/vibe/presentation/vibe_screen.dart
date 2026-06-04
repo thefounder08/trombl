@@ -172,14 +172,14 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('where are you?',
+              const Text('where u at?',
                   style: TextStyle(
                       fontFamily: TromblText.serif,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                       color: TromblColors.text)),
               const SizedBox(height: 6),
-              const Text('helps trom give more relevant picks.',
+              const Text('helps trom pick smarter for ur area.',
                   style: TextStyle(
                       color: TromblColors.textMuted, fontSize: 13)),
               const SizedBox(height: 16),

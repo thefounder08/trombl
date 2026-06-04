@@ -391,7 +391,7 @@ class _DoneState extends State<_Done> {
                 border: Border.all(color: TromblColors.border),
               ),
               child: const Text(
-                'open trombl →',
+                'back to trombl →',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: TromblColors.textSub,
@@ -440,7 +440,7 @@ class _Fork extends StatelessWidget {
           Text(
             vibe == 'fomo'
                 ? "ok, what's the\nmove?"
-                : "what's calling\nto you?",
+                : "what's calling\nto u?",
             style: const TextStyle(
               fontFamily: TromblText.serif,
               fontSize: 34,
@@ -497,7 +497,7 @@ class _Fork extends StatelessWidget {
                 border: Border.all(color: TromblColors.border),
               ),
               child: const Text(
-                'let me browse',
+                'lemme browse',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: TromblColors.textSub,
@@ -742,7 +742,7 @@ class _Pick extends StatelessWidget {
             child: const SizedBox(
               width: double.infinity,
               child: Text(
-                'see other options →',
+                'show me more →',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: TromblColors.textMuted,
@@ -815,7 +815,7 @@ class _AlternativesSheet extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'other options',
+            'other picks',
             style: TextStyle(
               fontFamily: TromblText.serif,
               fontSize: 20,
@@ -825,7 +825,7 @@ class _AlternativesSheet extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            'pick one and go.',
+            'tap one. go.',
             style: TextStyle(
               color: TromblColors.textMuted,
               fontSize: 12,
@@ -896,7 +896,7 @@ class _AlternativesSheet extends StatelessWidget {
             child: const SizedBox(
               width: double.infinity,
               child: Text(
-                'or browse the full menu →',
+                'or just browse →',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: TromblColors.textMuted,
@@ -1001,7 +1001,7 @@ class _AskState extends State<_Ask> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'pick one — trom decides from there.',
+            'pick one. trom handles the rest.',
             style: TextStyle(
               color: TromblColors.textSub,
               fontSize: 13,

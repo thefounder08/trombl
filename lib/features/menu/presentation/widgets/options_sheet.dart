@@ -113,27 +113,15 @@ class OptionsSheet extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Option rows
+          // Option rows — all options equally tappable
           ...category.options.map((opt) => _OptionRow(
                 option: opt,
                 accent: accent,
-                onTap: opt.isComingSoon
-                    ? () {
-                        HapticFeedback.selectionClick();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content:
-                                Text("trom's still cooking this one. soon."),
-                            duration: Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                    : () {
-                        AnalyticsService.categoryOpened(
-                          categoryId: category.id, vibe: vibe);
-                        _onPick(context, ref, opt);
-                      },
+                onTap: () {
+                  AnalyticsService.categoryOpened(
+                      categoryId: category.id, vibe: vibe);
+                  _onPick(context, ref, opt);
+                },
               )),
         ],
       ),
@@ -146,16 +134,11 @@ class OptionsSheet extends ConsumerWidget {
     final session = ref.read(activeSessionProvider);
     if (session == null) return;
 
-    // Capture router + messenger before pop() unmounts this widget.
-    final router = GoRouter.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-
-    Navigator.of(context).pop();
-
-    // Pre-generate squad message before writing the pick row.
+    // Pre-generate squad message before the DB write.
     final tromMessage =
         opt.tag == 'squad' ? TromblMenu.squadMessage(vibe) : null;
 
+    // DB write happens FIRST — before any pop or navigation.
     final result = await ref.read(sessionRepositoryProvider).addPick(
           sessionId: session.id,
           categoryId: category.id,
@@ -164,7 +147,11 @@ class OptionsSheet extends ConsumerWidget {
           tag: opt.tag,
         );
 
-    // context is unmounted after pop() — use captured references.
+    // Guard against widget unmounted during the async gap.
+    if (!context.mounted) return;
+
+    final router = GoRouter.of(context);
+
     switch (result) {
       case Success(:final data):
         AnalyticsService.optionSelected(
@@ -174,8 +161,9 @@ class OptionsSheet extends ConsumerWidget {
           vibe: vibe,
         );
         ref.invalidate(checkinPicksProvider);
-        // Store in activePickProvider so other widgets can read it.
         ref.read(activePickProvider.notifier).set(category, opt);
+        // Pop sheet then push response in the same frame.
+        Navigator.of(context).pop();
         router.push('/response',
             extra: ResponseArgs(
               pick: data,
@@ -185,7 +173,8 @@ class OptionsSheet extends ConsumerWidget {
               tromMessage: tromMessage,
             ));
       case Failure(:final error):
-        messenger.showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error)));
     }
   }
 }
@@ -206,41 +195,31 @@ class _OptionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 150),
-        opacity: option.isComingSoon ? 0.38 : 1.0,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 9),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: TromblColors.card,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: option.isComingSoon
-                  ? Colors.transparent
-                  : accent.withValues(alpha: 0.14),
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  option.label,
-                  style: TextStyle(
-                    color: option.isComingSoon
-                        ? TromblColors.textSub
-                        : TromblColors.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    fontFamily: TromblText.sans,
-                    height: 1.3,
-                  ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: TromblColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: accent.withValues(alpha: 0.14)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                option.label,
+                style: const TextStyle(
+                  color: TromblColors.text,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: TromblText.sans,
+                  height: 1.3,
                 ),
               ),
-              const SizedBox(width: 10),
-              _TagChip(tag: option.tag),
-            ],
-          ),
+            ),
+            const SizedBox(width: 10),
+            _TagChip(tag: option.tag),
+          ],
         ),
       ),
     );

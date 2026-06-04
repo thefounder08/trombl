@@ -10,6 +10,7 @@ typedef HomeGreetingData = ({
   List<Session> recentSessions,
   List<AiPick> recentAccepted,
   List<AiPick> pendingCheckins,
+  List<Pick> todayPicks,
 });
 
 /// Fetches all data needed for the home. No LLM calls — templated only.
@@ -17,22 +18,28 @@ final homeGreetingProvider =
     FutureProvider.autoDispose<HomeGreetingData>((ref) async {
   final sessionRepo = ref.watch(sessionRepositoryProvider);
   final decideRepo = ref.watch(decideRepositoryProvider);
+  final session = ref.watch(activeSessionProvider);
 
   final profileFuture = sessionRepo.getProfile();
   final sessionsFuture = sessionRepo.recentSessions(days: 7);
   final picksFuture = decideRepo.recentAiPicks(limit: 10);
   final checkinsFuture = decideRepo.pendingCheckins(limit: 3);
+  final todayPicksFuture = session != null
+      ? sessionRepo.picksForSessions([session.id])
+      : Future.value(<Pick>[]);
 
   final profile = await profileFuture;
   final sessions = await sessionsFuture;
   final picks = await picksFuture;
   final checkins = await checkinsFuture;
+  final todayPicks = await todayPicksFuture;
 
   return (
     firstName: _firstName(profile?.displayName),
     recentSessions: sessions,
     recentAccepted: picks.where((p) => p.accepted && !p.rerolled).toList(),
     pendingCheckins: checkins,
+    todayPicks: todayPicks,
   );
 });
 

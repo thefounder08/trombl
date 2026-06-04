@@ -47,7 +47,7 @@ class CheckinScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'tap what you actually did.',
+                'tap what u actually did.',
                 style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
               ),
               const SizedBox(height: 20),
@@ -70,7 +70,7 @@ class CheckinScreen extends ConsumerWidget {
                   data: (picks) => picks.isEmpty
                       ? const Center(
                           child: Text(
-                            "you haven't picked anything today yet.",
+                            "u haven't picked anything today yet.",
                             style: TextStyle(
                                 color: TromblColors.textMuted, fontSize: 14),
                           ),

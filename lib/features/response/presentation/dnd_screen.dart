@@ -64,7 +64,7 @@ class DndScreen extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      'back when ready',
+                      'back when ur ready',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: TromblText.sans,

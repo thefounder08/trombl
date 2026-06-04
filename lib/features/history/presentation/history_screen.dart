@@ -51,7 +51,7 @@ class HistoryScreen extends ConsumerWidget {
             const Padding(
               padding: EdgeInsets.fromLTRB(22, 20, 22, 4),
               child: Text(
-                'PAST DAYS',
+                'UR HISTORY',
                 style: TextStyle(
                   color: TromblColors.textMuted,
                   fontSize: 10,
@@ -106,7 +106,7 @@ class HistoryScreen extends ConsumerWidget {
             Expanded(
               child: historyAsync.when(
                 loading: () => const Center(
-                  child: Text('loading...',
+                  child: Text('one sec...',
                       style: TextStyle(
                           color: TromblColors.textMuted, fontSize: 13)),
                 ),
@@ -120,7 +120,7 @@ class HistoryScreen extends ConsumerWidget {
                         child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: 32),
                           child: Text(
-                            "no wrapped days yet.\nwrap ur first day from the check-in screen.",
+                            "no wrapped days yet.\nwrap ur first day to start tracking.",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                                 color: TromblColors.textMuted,
@@ -208,7 +208,7 @@ class _DayCard extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: Text(
-                'no picks this day.',
+                'nothing picked this day.',
                 style: TextStyle(
                     color: TromblColors.textMuted, fontSize: 13),
               ),

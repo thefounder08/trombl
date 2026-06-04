@@ -56,7 +56,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               const Text('🔥', style: TextStyle(fontSize: 40)),
               const SizedBox(height: 20),
               const Text(
-                'what should\ntrom call you?',
+                'what should\ntrom call u?',
                 style: TextStyle(
                   fontFamily: TromblText.serif,
                   fontSize: 32,
@@ -80,7 +80,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                     fontSize: 18,
                     fontWeight: FontWeight.w600),
                 decoration: InputDecoration(
-                  hintText: 'your name',
+                  hintText: 'ur name',
                   hintStyle:
                       const TextStyle(color: TromblColors.textMuted, fontSize: 18),
                   filled: true,

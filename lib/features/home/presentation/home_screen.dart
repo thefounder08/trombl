@@ -8,7 +8,10 @@ import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../../decide/domain/ai_pick_model.dart';
 import '../../decide/providers/decide_providers.dart';
+import '../../menu/domain/menu_data.dart';
+import '../../menu/domain/menu_models.dart';
 import '../../menu/providers/menu_providers.dart';
+import '../../menu/presentation/widgets/options_sheet.dart';
 import '../../plans/providers/plan_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/home_providers.dart';
@@ -40,29 +43,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     context.go('/decide');
   }
 
-  // Level 1: fomo/jomo chip → category menu (not single-pick).
-  // Mood from the text field is forwarded so the menu generates mood-aware categories.
-  Future<void> _vibeDecide(String targetVibe) async {
-    HapticFeedback.mediumImpact();
-    final session = ref.read(activeSessionProvider);
-    if (session == null) return;
-
-    // Forward any typed mood to the menu provider before navigating.
-    final mood = _moodCtrl.text.trim();
-    if (mood.isNotEmpty) {
-      ref.read(menuMoodProvider.notifier).state = mood;
-      _moodCtrl.clear();
-    } else {
-      ref.read(menuMoodProvider.notifier).state = null;
-    }
-
-    if (session.vibe != targetVibe) {
-      await ref.read(activeSessionProvider.notifier).switchVibe();
-    }
-    if (!mounted) return;
-    context.go('/menu');
-  }
-
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(activeSessionProvider);
@@ -77,8 +57,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final vibe = session.vibe;
     final accent = TromblColors.accentFor(vibe);
     final greetingAsync = ref.watch(homeGreetingProvider);
+    final dynamicMenu = ref.watch(dynamicMenuProvider);
     final myPlans = ref.watch(myPlansProvider);
     final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
+
+    // AI categories with static fallback while loading.
+    final categories = dynamicMenu.valueOrNull?.categories ?? TromblMenu.core(vibe);
 
     return Scaffold(
       backgroundColor: TromblColors.bg,
@@ -139,71 +123,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
 
-              const SizedBox(height: 36),
+              const SizedBox(height: 28),
 
-              // ── Zone 2: Decide hero (Level 2 — mood as primary signal) ─────
-              TextField(
-                controller: _moodCtrl,
-                style: const TextStyle(
-                    color: TromblColors.text,
-                    fontSize: 15,
-                    fontFamily: TromblText.sans),
-                maxLines: 2,
-                minLines: 1,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _decide(),
-                decoration: InputDecoration(
-                  hintText: "what's going on? (working, bored, tired...)",
-                  hintStyle: const TextStyle(
-                      color: TromblColors.textMuted,
-                      fontSize: 14,
-                      fontFamily: TromblText.sans),
-                  filled: true,
-                  fillColor: TromblColors.card,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 15),
-                ),
-              ),
-              const SizedBox(height: 12),
+              // ── Zone 2a: Category grid — primary action ───────────────────────
+              _CategoryGrid(categories: categories, accent: accent, vibe: vibe),
 
-              // Level 0 / Level 2: just decide (works with or without mood text).
-              GestureDetector(
-                onTap: _decide,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [TromblColors.fomo, TromblColors.jomo],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Text(
-                    'just decide for me ✨',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF090909),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                      fontFamily: TromblText.sans,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 20),
 
-              // Level 1: fomo / jomo chips — static brand anchor, instant entry.
-              _VibeChips(
-                currentVibe: vibe,
-                onTap: _vibeDecide,
-              ),
-              const SizedBox(height: 14),
+              // ── Zone 2b: Decide section — secondary, grouped ──────────────────
+              _DecideSection(moodCtrl: _moodCtrl, onDecide: _decide),
 
-              // Browse — truly secondary, text link only (never a button).
+              const SizedBox(height: 10),
+
+              // Browse — tertiary, text link only
               GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
@@ -212,7 +144,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: const SizedBox(
                   width: double.infinity,
                   child: Text(
-                    'or browse instead →',
+                    'or i\'ll just browse →',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: TromblColors.textMuted,
@@ -225,7 +157,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               const SizedBox(height: 40),
 
-              // ── Zone 3: What's going on ──────────────────────────────────────
+              // ── Zone 3: Plans + activity ─────────────────────────────────────
               _Zone3(
                 myPlans: myPlans,
                 uid: uid,
@@ -285,6 +217,178 @@ class _VibeChip extends StatelessWidget {
   }
 }
 
+// ─── Category list (AI-driven, full-width cards like menu screen) ─────────────
+
+class _CategoryGrid extends StatelessWidget {
+  const _CategoryGrid({required this.categories, required this.accent, required this.vibe});
+  final List<MenuCategory> categories;
+  final Color accent;
+  final String vibe;
+
+  @override
+  Widget build(BuildContext context) {
+    final cats = categories.take(4).toList();
+    return Column(
+      children: List.generate(cats.length, (i) => Padding(
+        padding: EdgeInsets.only(bottom: i < cats.length - 1 ? 8 : 0),
+        child: _CategoryCard(cat: cats[i], accent: accent, vibe: vibe),
+      )),
+    );
+  }
+}
+
+class _CategoryCard extends StatelessWidget {
+  const _CategoryCard({required this.cat, required this.accent, required this.vibe});
+  final MenuCategory cat;
+  final Color accent;
+  final String vibe;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => OptionsSheet(category: cat, vibe: vibe),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: TromblColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: TromblColors.border),
+        ),
+        child: Row(
+          children: [
+            // Emoji bubble — only accent touch
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(cat.emoji,
+                    style: const TextStyle(fontSize: 20)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Title + subtitle
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    cat.title,
+                    style: const TextStyle(
+                      color: TromblColors.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: TromblText.sans,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    cat.sub,
+                    style: const TextStyle(
+                      color: TromblColors.textMuted,
+                      fontSize: 11,
+                      fontFamily: TromblText.sans,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              '→',
+              style: TextStyle(
+                  color: TromblColors.textSub, fontSize: 15),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Decide section (mood input + pill, low priority) ────────────────────────
+
+class _DecideSection extends StatelessWidget {
+  const _DecideSection(
+      {required this.moodCtrl, required this.onDecide});
+  final TextEditingController moodCtrl;
+  final VoidCallback onDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: TromblColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: TromblColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: moodCtrl,
+            style: const TextStyle(
+                color: TromblColors.text,
+                fontSize: 14,
+                fontFamily: TromblText.sans),
+            maxLines: 2,
+            minLines: 1,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => onDecide(),
+            decoration: const InputDecoration(
+              hintText: "what's the vibe rn? (cooked, lowkey, bored af...)",
+              hintStyle: TextStyle(
+                  color: TromblColors.textMuted,
+                  fontSize: 13,
+                  fontFamily: TromblText.sans),
+              filled: false,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: onDecide,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              decoration: BoxDecoration(
+                color: TromblColors.bg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: TromblColors.border),
+              ),
+              child: const Text(
+                'just pick smth for me ✨',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: TromblColors.textSub,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Zone 3 ───────────────────────────────────────────────────────────────────
 
 class _Zone3 extends ConsumerWidget {
@@ -300,15 +404,14 @@ class _Zone3 extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = greetingData;
+    final hasActivity = data != null &&
+        (data.pendingCheckins.isNotEmpty ||
+            data.recentAccepted.isNotEmpty ||
+            data.todayPicks.isNotEmpty);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Pending check-ins ────────────────────────────────────────────────
-        if (data != null && data.pendingCheckins.isNotEmpty) ...[
-          _CheckInSection(picks: data.pendingCheckins),
-          const SizedBox(height: 28),
-        ],
-
         // ── Plans ────────────────────────────────────────────────────────────
         myPlans.when(
           loading: () => const SizedBox.shrink(),
@@ -319,7 +422,7 @@ class _Zone3 extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'YOUR PLANS',
+                  'UR PLANS',
                   style: TextStyle(
                     color: TromblColors.textMuted,
                     fontSize: 9,
@@ -339,34 +442,25 @@ class _Zone3 extends ConsumerWidget {
           },
         ),
 
-        // ── Recent picks strip ───────────────────────────────────────────────
-        if (data != null && data.recentAccepted.isNotEmpty) ...[
-          _RecentStrip(picks: data.recentAccepted.take(3).toList()),
+        // ── Activity handle (ongoing + recent — opens sheet) ─────────────────
+        if (hasActivity) ...[
+          _ActivityHandle(greetingData: data),
           const SizedBox(height: 20),
         ],
 
-        // Profile teaser
+        // Profile icon tap target (subtle — no label, profile has its own page)
         GestureDetector(
           onTap: () => context.push('/profile'),
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "trom's read on u",
+                "ur stats →",
                 style: TextStyle(
                   color: TromblColors.textMuted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
                   fontFamily: TromblText.sans,
                 ),
-              ),
-              SizedBox(width: 4),
-              Text(
-                '→',
-                style: TextStyle(
-                    color: TromblColors.textMuted,
-                    fontSize: 13,
-                    fontFamily: TromblText.sans),
               ),
             ],
           ),
@@ -376,49 +470,191 @@ class _Zone3 extends ConsumerWidget {
   }
 }
 
-// ─── Recent picks strip ───────────────────────────────────────────────────────
+// ─── Activity handle ─────────────────────────────────────────────────────────
 
-class _RecentStrip extends StatelessWidget {
-  const _RecentStrip({required this.picks});
-  final List<AiPick> picks;
+class _ActivityHandle extends StatelessWidget {
+  const _ActivityHandle({required this.greetingData});
+  final HomeGreetingData greetingData;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final pendingCount = greetingData.pendingCheckins.length;
+    final recentCount = greetingData.recentAccepted.length;
+    final todayPickCount = greetingData.todayPicks.length;
+
+    final parts = <String>[
+      if (todayPickCount > 0)
+        '$todayPickCount ${todayPickCount == 1 ? 'pick' : 'picks'} today',
+      if (pendingCount > 0)
+        '$pendingCount still pending',
+      if (recentCount > 0)
+        '$recentCount ai ${recentCount == 1 ? 'pick' : 'picks'} done',
+    ];
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => _ActivitySheet(greetingData: greetingData),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: TromblColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: TromblColors.border),
+        ),
+        child: Row(
           children: [
-            const Text(
-              'WHAT YOU\'VE BEEN UP TO',
-              style: TextStyle(
-                color: TromblColors.textMuted,
-                fontSize: 9,
-                letterSpacing: 1.5,
-                fontWeight: FontWeight.w700,
+            Text(
+              pendingCount > 0 ? '🔔' : '📋',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              parts.join(' · '),
+              style: const TextStyle(
+                color: TromblColors.textSub,
+                fontSize: 13,
                 fontFamily: TromblText.sans,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            GestureDetector(
-              onTap: () => GoRouter.of(context).push('/history'),
-              child: const Text(
-                'see all →',
-                style: TextStyle(
-                  color: TromblColors.textMuted,
-                  fontSize: 11,
-                  fontFamily: TromblText.sans,
-                ),
+            const Spacer(),
+            const Text(
+              'open →',
+              style: TextStyle(
+                color: TromblColors.textMuted,
+                fontSize: 12,
+                fontFamily: TromblText.sans,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        ...picks.map((p) => _RecentPickRow(pick: p)),
-      ],
+      ),
     );
   }
 }
+
+// ─── Activity sheet (ongoing + summary) ──────────────────────────────────────
+
+class _ActivitySheet extends ConsumerStatefulWidget {
+  const _ActivitySheet({required this.greetingData});
+  final HomeGreetingData greetingData;
+
+  @override
+  ConsumerState<_ActivitySheet> createState() => _ActivitySheetState();
+}
+
+class _ActivitySheetState extends ConsumerState<_ActivitySheet> {
+  final Set<String> _dismissed = {};
+
+  Future<void> _answer(AiPick pick, bool done) async {
+    HapticFeedback.selectionClick();
+    setState(() => _dismissed.add(pick.id));
+    final repo = ref.read(decideRepositoryProvider);
+    await repo.markDone(pick.id, done: done);
+    ref.invalidate(homeGreetingProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = widget.greetingData.pendingCheckins
+        .where((p) => !_dismissed.contains(p.id))
+        .toList();
+    final recent = widget.greetingData.recentAccepted.take(5).toList();
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: TromblColors.bg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: TromblColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                children: [
+                  if (pending.isNotEmpty) ...[
+                    const Text(
+                      'LOOSE ENDS',
+                      style: TextStyle(
+                        color: TromblColors.textMuted,
+                        fontSize: 9,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: TromblText.sans,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...pending.map(
+                        (p) => _CheckInCard(pick: p, onAnswer: _answer)),
+                    const SizedBox(height: 24),
+                  ],
+                  if (recent.isNotEmpty) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "WHAT U'VE BEEN ON",
+                          style: TextStyle(
+                            color: TromblColors.textMuted,
+                            fontSize: 9,
+                            letterSpacing: 1.5,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: TromblText.sans,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.pop(context);
+                            GoRouter.of(context).push('/history');
+                          },
+                          child: const Text(
+                            'see everything →',
+                            style: TextStyle(
+                              color: TromblColors.textMuted,
+                              fontSize: 11,
+                              fontFamily: TromblText.sans,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...recent.map((p) => _RecentPickRow(pick: p)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Recent pick row ──────────────────────────────────────────────────────────
 
 class _RecentPickRow extends StatelessWidget {
   const _RecentPickRow({required this.pick});
@@ -468,53 +704,7 @@ class _RecentPickRow extends StatelessWidget {
   }
 }
 
-// ─── Check-in section ─────────────────────────────────────────────────────────
-
-class _CheckInSection extends ConsumerStatefulWidget {
-  const _CheckInSection({required this.picks});
-  final List<AiPick> picks;
-
-  @override
-  ConsumerState<_CheckInSection> createState() => _CheckInSectionState();
-}
-
-class _CheckInSectionState extends ConsumerState<_CheckInSection> {
-  // IDs dismissed locally so the card vanishes instantly without a full reload.
-  final Set<String> _dismissed = {};
-
-  Future<void> _answer(AiPick pick, bool done) async {
-    HapticFeedback.selectionClick();
-    setState(() => _dismissed.add(pick.id));
-    final repo = ref.read(decideRepositoryProvider);
-    await repo.markDone(pick.id, done: done);
-    // Invalidate so the provider re-fetches on next visit.
-    ref.invalidate(homeGreetingProvider);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = widget.picks.where((p) => !_dismissed.contains(p.id)).toList();
-    if (visible.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'OPEN LOOPS',
-          style: TextStyle(
-            color: TromblColors.textMuted,
-            fontSize: 9,
-            letterSpacing: 1.5,
-            fontWeight: FontWeight.w700,
-            fontFamily: TromblText.sans,
-          ),
-        ),
-        const SizedBox(height: 10),
-        ...visible.map((p) => _CheckInCard(pick: p, onAnswer: _answer)),
-      ],
-    );
-  }
-}
+// ─── Check-in card ────────────────────────────────────────────────────────────
 
 class _CheckInCard extends StatelessWidget {
   const _CheckInCard({required this.pick, required this.onAnswer});
@@ -537,7 +727,7 @@ class _CheckInCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'did you actually ${pick.pickText.toLowerCase()}?',
+            'did u actually ${pick.pickText.toLowerCase()}?',
             style: const TextStyle(
               color: TromblColors.text,
               fontSize: 13,
@@ -550,7 +740,7 @@ class _CheckInCard extends StatelessWidget {
           Row(
             children: [
               _AnswerBtn(
-                label: 'yeah, did it',
+                label: 'fr did it',
                 accent: accent,
                 filled: true,
                 onTap: () => onAnswer(pick, true),
@@ -653,7 +843,7 @@ class _PlanTile extends ConsumerWidget {
                   ),
                   Text(
                     [
-                      isOwner ? 'ur plan' : 'joined',
+                      isOwner ? 'ur plan' : 'u\'re in',
                       if (inCount != null && inCount > 0) '$inCount in',
                     ].join(' · '),
                     style: const TextStyle(
@@ -671,94 +861,6 @@ class _PlanTile extends ConsumerWidget {
                   color: accent.withValues(alpha: 0.5), fontSize: 13),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Level 1: fomo / jomo vibe chips ─────────────────────────────────────────
-// Static brand anchor — instant, no AI, highlights the active vibe.
-
-class _VibeChips extends StatelessWidget {
-  const _VibeChips({required this.currentVibe, required this.onTap});
-  final String currentVibe;
-  final Future<void> Function(String vibe) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _Chip(
-          emoji: '⚡',
-          label: 'fomo',
-          active: currentVibe == 'fomo',
-          accent: TromblColors.fomo,
-          onTap: () => onTap('fomo'),
-        ),
-        const SizedBox(width: 10),
-        _Chip(
-          emoji: '🛌',
-          label: 'jomo',
-          active: currentVibe == 'jomo',
-          accent: TromblColors.jomo,
-          onTap: () => onTap('jomo'),
-        ),
-      ],
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.emoji,
-    required this.label,
-    required this.active,
-    required this.accent,
-    required this.onTap,
-  });
-  final String emoji;
-  final String label;
-  final bool active;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: active
-                ? accent.withValues(alpha: 0.12)
-                : TromblColors.card,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: active
-                  ? accent.withValues(alpha: 0.38)
-                  : TromblColors.border,
-              width: active ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 14)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: active ? accent : TromblColors.textSub,
-                  fontSize: 13,
-                  fontWeight:
-                      active ? FontWeight.w700 : FontWeight.w500,
-                  fontFamily: TromblText.sans,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

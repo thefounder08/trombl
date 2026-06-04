@@ -95,19 +95,19 @@ void _showEditProfile(BuildContext context, WidgetRef ref, Profile? profile) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('your profile',
+              const Text('ur profile',
                   style: TextStyle(
                       fontFamily: TromblText.serif,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                       color: TromblColors.text)),
               const SizedBox(height: 18),
-              _ProfileField(ctrl: nameCtrl, hint: 'your name', label: 'NAME'),
+              _ProfileField(ctrl: nameCtrl, hint: 'ur name', label: 'NAME'),
               const SizedBox(height: 10),
               _ProfileField(
                   ctrl: handleCtrl, hint: '@handle', label: 'HANDLE'),
               const SizedBox(height: 10),
-              _ProfileField(ctrl: cityCtrl, hint: 'your city', label: 'CITY'),
+              _ProfileField(ctrl: cityCtrl, hint: 'ur city', label: 'CITY'),
               const SizedBox(height: 18),
               GestureDetector(
                 onTap: () async {
