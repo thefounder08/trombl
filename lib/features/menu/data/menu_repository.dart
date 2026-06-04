@@ -27,7 +27,20 @@ class MenuRepository {
     required int hour,
     required String dayOfWeek,
     required List<AiPick> recentAccepted,
+    String? moodText,
   }) async {
+    // Mood always bypasses cache — generates fresh, mood-specific menu.
+    if (moodText != null && moodText.isNotEmpty) {
+      debugPrint('[MenuAI] MOOD=$moodText — bypassing cache, generating fresh');
+      return _generate(
+        cacheKey: cacheKey,
+        vibe: vibe,
+        hour: hour,
+        dayOfWeek: dayOfWeek,
+        recentAccepted: recentAccepted,
+        moodText: moodText,
+      );
+    }
     // 1. Memory — zero I/O
     final mem = _memory[cacheKey];
     if (mem != null && !mem.isExpired) {
@@ -86,6 +99,7 @@ class MenuRepository {
     required int hour,
     required String dayOfWeek,
     required List<AiPick> recentAccepted,
+    String? moodText,
   }) async {
     try {
       final p = MenuPromptBuilder.build(
@@ -93,6 +107,7 @@ class MenuRepository {
         hour: hour,
         dayOfWeek: dayOfWeek,
         recentAccepted: recentAccepted,
+        moodText: moodText,
       );
 
       final result = await _llm.generate(

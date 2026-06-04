@@ -8,6 +8,7 @@ import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
 import '../../decide/domain/ai_pick_model.dart';
 import '../../decide/providers/decide_providers.dart';
+import '../../menu/providers/menu_providers.dart';
 import '../../plans/providers/plan_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/home_providers.dart';
@@ -39,17 +40,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     context.go('/decide');
   }
 
-  // Level 1: tap a vibe chip → decide immediately with that vibe anchored.
+  // Level 1: fomo/jomo chip → category menu (not single-pick).
+  // Mood from the text field is forwarded so the menu generates mood-aware categories.
   Future<void> _vibeDecide(String targetVibe) async {
     HapticFeedback.mediumImpact();
     final session = ref.read(activeSessionProvider);
     if (session == null) return;
+
+    // Forward any typed mood to the menu provider before navigating.
+    final mood = _moodCtrl.text.trim();
+    if (mood.isNotEmpty) {
+      ref.read(menuMoodProvider.notifier).state = mood;
+      _moodCtrl.clear();
+    } else {
+      ref.read(menuMoodProvider.notifier).state = null;
+    }
+
     if (session.vibe != targetVibe) {
       await ref.read(activeSessionProvider.notifier).switchVibe();
     }
     if (!mounted) return;
-    ref.read(decideShouldAutoStartProvider.notifier).state = true;
-    context.go('/decide');
+    context.go('/menu');
   }
 
   @override

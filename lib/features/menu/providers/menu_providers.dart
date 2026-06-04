@@ -10,6 +10,10 @@ import '../../decide/domain/ai_pick_model.dart';
 import '../../decide/providers/decide_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 
+// Mood forwarded from home when navigating via fomo/jomo chips.
+// Watched by menuCacheKeyProvider — changes force fresh generation.
+final menuMoodProvider = StateProvider<String?>((_) => null);
+
 // ─── Active pick ──────────────────────────────────────────────────────────────
 
 /// The pick the user has just confirmed — held until the response screen
@@ -40,13 +44,17 @@ final activePickProvider =
 final menuCacheKeyProvider = Provider<String>((ref) {
   final session = ref.watch(activeSessionProvider);
   final vibe = session?.vibe ?? 'fomo';
-  final uid =
-      Supabase.instance.client.auth.currentUser?.id ?? 'anon';
+  final uid = Supabase.instance.client.auth.currentUser?.id ?? 'anon';
   final now = DateTime.now();
+  final isWeekend = now.weekday >= 6 ? 'wknd' : 'wkdy';
   final bucket = TimeBucket.fromHour(now.hour).label;
   final date =
       '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-  return '${uid}_${vibe}_${bucket}_$date';
+  // Mood in key forces fresh generation for mood-specific menus.
+  final mood = ref.watch(menuMoodProvider);
+  final moodPart =
+      (mood != null && mood.isNotEmpty) ? '_m${mood.hashCode.abs()}' : '';
+  return '${uid}_${vibe}_${bucket}_${isWeekend}_$date$moodPart';
 });
 
 // ─── Infrastructure ───────────────────────────────────────────────────────────
@@ -87,12 +95,15 @@ class DynamicMenuNotifier extends AsyncNotifier<DynamicMenu> {
     const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
     final dayOfWeek = days[now.weekday - 1];
 
+    final mood = ref.read(menuMoodProvider);
+
     return repo.getMenu(
       cacheKey: key,
       vibe: vibe,
       hour: now.hour,
       dayOfWeek: dayOfWeek,
       recentAccepted: typedRecent,
+      moodText: mood,
     );
   }
 
