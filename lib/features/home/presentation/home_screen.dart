@@ -39,6 +39,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     context.go('/decide');
   }
 
+  // Level 1: tap a vibe chip → decide immediately with that vibe anchored.
+  Future<void> _vibeDecide(String targetVibe) async {
+    HapticFeedback.mediumImpact();
+    final session = ref.read(activeSessionProvider);
+    if (session == null) return;
+    if (session.vibe != targetVibe) {
+      await ref.read(activeSessionProvider.notifier).switchVibe();
+    }
+    if (!mounted) return;
+    ref.read(decideShouldAutoStartProvider.notifier).state = true;
+    context.go('/decide');
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(activeSessionProvider);
@@ -117,35 +130,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               const SizedBox(height: 36),
 
-              // ── Zone 2: Decide hero ──────────────────────────────────────────
+              // ── Zone 2: Decide hero (Level 2 — mood as primary signal) ─────
               TextField(
                 controller: _moodCtrl,
                 style: const TextStyle(
-                    color: TromblColors.textSub,
-                    fontSize: 14,
+                    color: TromblColors.text,
+                    fontSize: 15,
                     fontFamily: TromblText.sans),
-                maxLines: 1,
+                maxLines: 2,
+                minLines: 1,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _decide(),
                 decoration: InputDecoration(
-                  hintText: 'tell trom ur mood... or just tap ↓',
+                  hintText: "what's going on? (working, bored, tired...)",
                   hintStyle: const TextStyle(
                       color: TromblColors.textMuted,
-                      fontSize: 13,
+                      fontSize: 14,
                       fontFamily: TromblText.sans),
                   filled: true,
                   fillColor: TromblColors.card,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 13),
+                      horizontal: 16, vertical: 15),
                 ),
               ),
               const SizedBox(height: 12),
 
-              // Hero: just decide for me ✨
+              // Level 0 / Level 2: just decide (works with or without mood text).
               GestureDetector(
                 onTap: _decide,
                 child: Container(
@@ -169,29 +183,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
 
-              // Secondary: let me browse
+              // Level 1: fomo / jomo chips — static brand anchor, instant entry.
+              _VibeChips(
+                currentVibe: vibe,
+                onTap: _vibeDecide,
+              ),
+              const SizedBox(height: 14),
+
+              // Browse — truly secondary, text link only (never a button).
               GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
                   context.go('/menu');
                 },
-                child: Container(
+                child: const SizedBox(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  decoration: BoxDecoration(
-                    color: TromblColors.card,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: TromblColors.border),
-                  ),
-                  child: const Text(
-                    'let me browse',
+                  child: Text(
+                    'or browse instead →',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: TromblColors.textSub,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                      color: TromblColors.textMuted,
+                      fontSize: 12,
                       fontFamily: TromblText.sans,
                     ),
                   ),
@@ -646,6 +660,94 @@ class _PlanTile extends ConsumerWidget {
                   color: accent.withValues(alpha: 0.5), fontSize: 13),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Level 1: fomo / jomo vibe chips ─────────────────────────────────────────
+// Static brand anchor — instant, no AI, highlights the active vibe.
+
+class _VibeChips extends StatelessWidget {
+  const _VibeChips({required this.currentVibe, required this.onTap});
+  final String currentVibe;
+  final Future<void> Function(String vibe) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _Chip(
+          emoji: '⚡',
+          label: 'fomo',
+          active: currentVibe == 'fomo',
+          accent: TromblColors.fomo,
+          onTap: () => onTap('fomo'),
+        ),
+        const SizedBox(width: 10),
+        _Chip(
+          emoji: '🛌',
+          label: 'jomo',
+          active: currentVibe == 'jomo',
+          accent: TromblColors.jomo,
+          onTap: () => onTap('jomo'),
+        ),
+      ],
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({
+    required this.emoji,
+    required this.label,
+    required this.active,
+    required this.accent,
+    required this.onTap,
+  });
+  final String emoji;
+  final String label;
+  final bool active;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: active
+                ? accent.withValues(alpha: 0.12)
+                : TromblColors.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: active
+                  ? accent.withValues(alpha: 0.38)
+                  : TromblColors.border,
+              width: active ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: active ? accent : TromblColors.textSub,
+                  fontSize: 13,
+                  fontWeight:
+                      active ? FontWeight.w700 : FontWeight.w500,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

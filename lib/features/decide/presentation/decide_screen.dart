@@ -19,7 +19,8 @@ import '../domain/pick_fallback.dart';
 import '../domain/pick_prompt_builder.dart';
 import '../providers/decide_providers.dart';
 
-enum _Phase { fork, loading, pick, done }
+// Level 4 is a new phase — trom stops guessing and asks ONE question.
+enum _Phase { fork, loading, pick, ask, done }
 
 class DecideScreen extends ConsumerStatefulWidget {
   const DecideScreen({super.key});
@@ -34,14 +35,11 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
   int _rerollCount = 0;
   bool _actionLoading = false;
 
-  // Tracks picks rerolled this session for in-prompt anti-repetition.
   final List<String> _inSessionRejects = [];
 
   @override
   void initState() {
     super.initState();
-    // Check auto-start flag AFTER the first frame — modifying providers during
-    // build() is forbidden by Riverpod and throws StateNotifierListenerError.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final shouldStart = ref.read(decideShouldAutoStartProvider);
@@ -68,17 +66,15 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
     final dayOfWeek = days[now.weekday - 1];
 
-    // Consume mood text (home screen may have set it)
+    // Consume mood text — set by home, vibe chips, or Level 4 trom-asks.
     final mood = ref.read(moodInputProvider);
     if (mood != null) ref.read(moodInputProvider.notifier).state = null;
 
-    // Load history + weather in parallel (both are graceful — return empty/null on error)
     final contextFuture = ref.read(decideRepositoryProvider).loadContext();
     final weatherFuture = WeatherService.getCondition(city);
     final ctx = await contextFuture;
     final weather = await weatherFuture;
 
-    // Build prompt with all 4 tiers
     final prompt = PickPromptBuilder.build(
       vibe: session.vibe,
       hour: now.hour,
@@ -91,7 +87,6 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       weatherCondition: weather,
     );
 
-    // Call LLM; fall back silently on any failure (fallback also respects time rules)
     AiPick pick;
     final result = await ref.read(llmProvider).generate(
           LlmRequest(system: prompt.system, prompt: prompt.userPrompt),
@@ -105,7 +100,6 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
             rerollCount: _rerollCount);
     }
 
-    // Attach context so the learning loop records mood + time + weather
     pick = pick.copyWith(
       moodText: mood,
       pickHour: now.hour,
@@ -113,7 +107,6 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       weatherCondition: weather,
     );
 
-    // Persist to DB (fire-and-forget; error doesn't block the pick)
     final saved = await ref.read(decideRepositoryProvider).savePick(pick);
 
     if (!mounted) return;
@@ -123,25 +116,50 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     });
   }
 
-  // ── Reroll (Scenario 1) ───────────────────────────────────────────────────────
+  // ── Reroll (Level 2→3 fallback; Level 4 fires at 3+) ─────────────────────────
 
   Future<void> _reroll() async {
     HapticFeedback.lightImpact();
     final current = _currentPick;
     if (current != null) {
       if (current.pickText.isNotEmpty) _inSessionRejects.add(current.pickText);
-      unawaited(
-          ref.read(decideRepositoryProvider).markRerolled(current.id));
+      unawaited(ref.read(decideRepositoryProvider).markRerolled(current.id));
     }
     setState(() => _rerollCount++);
 
-    // At 3+ rerolls the escape hatch replaces the nah button — no new pick.
+    // Level 4: after 3 rerolls trom stops guessing and asks ONE question.
     if (_rerollCount >= 3) {
-      setState(() => _phase = _Phase.pick);
+      setState(() => _phase = _Phase.ask);
       return;
     }
 
     await _requestPick();
+  }
+
+  // ── Level 4: re-anchor with mood from trom-asks ───────────────────────────────
+
+  Future<void> _requestWithMood(String mood) async {
+    ref.read(moodInputProvider.notifier).state = mood;
+    // Reset counters so the new anchored pick feels fresh.
+    setState(() {
+      _rerollCount = 0;
+      _inSessionRejects.clear();
+    });
+    await _requestPick();
+  }
+
+  // ── Level 3: user tapped an alternative from the explore sheet ────────────────
+
+  Future<void> _selectAlternative(AiPick pick) async {
+    setState(() => _phase = _Phase.loading);
+    final saved = await ref.read(decideRepositoryProvider).savePick(pick);
+    if (!mounted) return;
+    setState(() {
+      _currentPick = saved;
+      _rerollCount = 0;
+      _inSessionRejects.clear();
+      _phase = _Phase.pick;
+    });
   }
 
   // ── Do it ────────────────────────────────────────────────────────────────────
@@ -152,7 +170,6 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
 
     unawaited(ref.read(decideRepositoryProvider).markAccepted(pick.id));
 
-    // Solo picks — show warm confirmation before navigating to menu.
     if (pick.tag == 'solo') {
       if (mounted) setState(() => _phase = _Phase.done);
       return;
@@ -185,7 +202,8 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       final start = raw.indexOf('{');
       final end = raw.lastIndexOf('}');
       if (start == -1 || end <= start) throw const FormatException('no JSON');
-      final map = jsonDecode(raw.substring(start, end + 1)) as Map<String, dynamic>;
+      final map =
+          jsonDecode(raw.substring(start, end + 1)) as Map<String, dynamic>;
 
       final pickText = (map['pick'] as String? ?? '').trim();
       final reasonText = (map['reason'] as String? ?? '').trim();
@@ -248,6 +266,12 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               accent: accent,
               onContinue: () => context.go('/home'),
             ),
+          _Phase.ask => _Ask(
+              vibe: session.vibe,
+              accent: accent,
+              onAnswer: _requestWithMood,
+              onBack: () => setState(() => _phase = _Phase.pick),
+            ),
           _Phase.pick => _Pick(
               pick: _currentPick!,
               vibe: session.vibe,
@@ -256,8 +280,31 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               actionLoading: _actionLoading,
               onDoIt: _doIt,
               onReroll: _reroll,
+              onExplore: () {
+                final s = ref.read(activeSessionProvider);
+                final router = GoRouter.of(context);
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (_) => _AlternativesSheet(
+                    vibe: s?.vibe ?? 'fomo',
+                    hour: DateTime.now().hour,
+                    sessionId: s?.id,
+                    currentPickText: _currentPick?.pickText ?? '',
+                    accent: accent,
+                    onSelect: (pick) {
+                      Navigator.of(context).pop();
+                      _selectAlternative(pick);
+                    },
+                    onBrowse: () {
+                      Navigator.of(context).pop();
+                      router.go('/menu');
+                    },
+                  ),
+                );
+              },
               onSwitchVibe: () => context.go('/vibe'),
-              onBrowse: () => context.go('/menu'),
               onBack: () => setState(() {
                 _phase = _Phase.fork;
                 _rerollCount = 0;
@@ -271,7 +318,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
   }
 }
 
-// ─── Done screen (solo pick confirmed) ───────────────────────────────────────
+// ─── Done screen ──────────────────────────────────────────────────────────────
 
 class _Done extends StatefulWidget {
   const _Done({
@@ -293,7 +340,6 @@ class _DoneState extends State<_Done> {
   @override
   void initState() {
     super.initState();
-    // Auto-navigate to menu after 2.5 s so the user gets a moment to read.
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (mounted) widget.onContinue();
     });
@@ -388,8 +434,7 @@ class _Fork extends StatelessWidget {
           GestureDetector(
             onTap: onBack,
             child: const Text('← back',
-                style:
-                    TextStyle(color: TromblColors.textMuted, fontSize: 13)),
+                style: TextStyle(color: TromblColors.textMuted, fontSize: 13)),
           ),
           const Spacer(),
           Text(
@@ -408,12 +453,9 @@ class _Fork extends StatelessWidget {
           const SizedBox(height: 10),
           const Text(
             "trom can pick for u, or u browse.",
-            style:
-                TextStyle(color: TromblColors.textSub, fontSize: 14),
+            style: TextStyle(color: TromblColors.textSub, fontSize: 14),
           ),
           const Spacer(),
-
-          // Primary — gradient pick for me
           GestureDetector(
             onTap: () {
               HapticFeedback.mediumImpact();
@@ -441,8 +483,6 @@ class _Fork extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-
-          // Secondary — browse
           GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
@@ -547,8 +587,8 @@ class _Pick extends StatelessWidget {
     required this.actionLoading,
     required this.onDoIt,
     required this.onReroll,
+    required this.onExplore,
     required this.onSwitchVibe,
-    required this.onBrowse,
     required this.onBack,
   });
   final AiPick pick;
@@ -558,30 +598,28 @@ class _Pick extends StatelessWidget {
   final bool actionLoading;
   final VoidCallback onDoIt;
   final VoidCallback onReroll;
+  // Level 3: opens the alternatives sheet.
+  final VoidCallback onExplore;
   final VoidCallback onSwitchVibe;
-  final VoidCallback onBrowse;
   final VoidCallback onBack;
 
   String get _chipLabel {
     if (rerollCount == 0) return 'trom says';
     if (rerollCount == 1) return 'ok, try this';
-    if (rerollCount == 2) return 'last pick —';
-    return 'still here —';
+    return 'last try before trom asks —';
   }
 
   String get _doItLabel => switch (pick.tag) {
-        'squad' => 'trom, send it →',
+        'squad'    => 'trom, send it →',
         'order in' => 'trom, order →',
-        'rest' => 'trom, lock in →',
+        'rest'     => 'trom, lock in →',
         'discover' => 'trom, find it →',
-        'content' => 'trom, post it →',
-        _ => 'noted. go. →',
+        'content'  => 'trom, post it →',
+        _          => 'noted. go. →',
       };
 
   @override
   Widget build(BuildContext context) {
-    final showEscape = rerollCount >= 3;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 14, 24, 32),
       child: Column(
@@ -590,15 +628,13 @@ class _Pick extends StatelessWidget {
           GestureDetector(
             onTap: onBack,
             child: const Text('← back',
-                style: TextStyle(
-                    color: TromblColors.textMuted, fontSize: 13)),
+                style: TextStyle(color: TromblColors.textMuted, fontSize: 13)),
           ),
           const Spacer(),
 
           // "trom says" chip
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
@@ -643,88 +679,7 @@ class _Pick extends StatelessWidget {
 
           const Spacer(),
 
-          // Escape hatch — only at reroll >= 3 (Scenario 1)
-          if (showEscape) ...[
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              decoration: BoxDecoration(
-                color: TromblColors.card,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: TromblColors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "maybe it's not a $vibe night.",
-                    style: const TextStyle(
-                      color: TromblColors.textSub,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: onSwitchVibe,
-                          child: Container(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 11),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: accent.withValues(alpha: 0.28)),
-                            ),
-                            child: Text(
-                              'switch vibe →',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: accent,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                fontFamily: TromblText.sans,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: onBrowse,
-                          child: Container(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 11),
-                            decoration: BoxDecoration(
-                              color: TromblColors.card,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: TromblColors.border),
-                            ),
-                            child: const Text(
-                              'or just browse →',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: TromblColors.textSub,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                fontFamily: TromblText.sans,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
-
-          // "Do it" — primary action
+          // Primary CTA
           GestureDetector(
             onTap: actionLoading ? null : onDoIt,
             child: AnimatedOpacity(
@@ -756,30 +711,442 @@ class _Pick extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // "nah" — reroll OR escape (Scenario 1 floor)
-          if (!showEscape)
-            GestureDetector(
-              onTap: onReroll,
+          // Nah / reroll — always visible; 3rd tap triggers Level 4 ask.
+          GestureDetector(
+            onTap: onReroll,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: TromblColors.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: TromblColors.border),
+              ),
+              child: Text(
+                rerollCount >= 1 ? 'still nah' : 'nah, something else',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: TromblColors.textSub,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Level 3: see other options — secondary, never primary.
+          GestureDetector(
+            onTap: onExplore,
+            child: const SizedBox(
+              width: double.infinity,
+              child: Text(
+                'see other options →',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: TromblColors.textMuted,
+                  fontSize: 12,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Level 3: alternatives sheet ─────────────────────────────────────────────
+
+class _AlternativesSheet extends StatelessWidget {
+  const _AlternativesSheet({
+    required this.vibe,
+    required this.hour,
+    required this.sessionId,
+    required this.currentPickText,
+    required this.accent,
+    required this.onSelect,
+    required this.onBrowse,
+  });
+  final String vibe;
+  final int hour;
+  final String? sessionId;
+  final String currentPickText;
+  final Color accent;
+  final void Function(AiPick) onSelect;
+  final VoidCallback onBrowse;
+
+  @override
+  Widget build(BuildContext context) {
+    // Generate fallback options, skipping the one already shown.
+    final options = <AiPick>[];
+    for (int i = 0; options.length < 4 && i < 20; i++) {
+      final p = PickFallback.get(vibe, hour, sessionId, rerollCount: i);
+      if (p.pickText != currentPickText &&
+          !options.any((o) => o.pickText == p.pickText)) {
+        options.add(p);
+      }
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: TromblColors.cardLit,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        22, 14, 22,
+        MediaQuery.of(context).padding.bottom + 28,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: TromblColors.borderMid,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'other options',
+            style: TextStyle(
+              fontFamily: TromblText.serif,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: accent,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'pick one and go.',
+            style: TextStyle(
+              color: TromblColors.textMuted,
+              fontSize: 12,
+              fontFamily: TromblText.sans,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...options.map((p) => GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  onSelect(p);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 9),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border:
+                        Border.all(color: accent.withValues(alpha: 0.14)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.pickText,
+                              style: const TextStyle(
+                                color: TromblColors.text,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: TromblText.sans,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              p.reasonText,
+                              style: const TextStyle(
+                                color: TromblColors.textSub,
+                                fontSize: 12,
+                                fontFamily: TromblText.sans,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 11,
+                        color: accent.withValues(alpha: 0.45),
+                      ),
+                    ],
+                  ),
+                ),
+              )),
+          const SizedBox(height: 4),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onBrowse();
+            },
+            child: const SizedBox(
+              width: double.infinity,
+              child: Text(
+                'or browse the full menu →',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: TromblColors.textMuted,
+                  fontSize: 12,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Level 4: trom asks ONE question ─────────────────────────────────────────
+
+class _Ask extends StatefulWidget {
+  const _Ask({
+    required this.vibe,
+    required this.accent,
+    required this.onAnswer,
+    required this.onBack,
+  });
+  final String vibe;
+  final Color accent;
+  final void Function(String mood) onAnswer;
+  final VoidCallback onBack;
+
+  @override
+  State<_Ask> createState() => _AskState();
+}
+
+class _AskState extends State<_Ask> {
+  String? _selected;
+  final _ctrl = TextEditingController();
+  bool _showInput = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  // Time-aware chips — calibrated so the answer re-anchors the pick correctly.
+  List<String> get _chips {
+    final hour = DateTime.now().hour;
+    if (hour >= 0 && hour < 5) {
+      return ["can't sleep", 'restless', 'want something quiet', 'just winding down'];
+    }
+    if (hour >= 5 && hour < 12) {
+      return ['low energy', 'hungry', 'need to move', 'want quiet time'];
+    }
+    if (hour >= 12 && hour < 17) {
+      return ['bored', 'hungry', 'need a break', 'want to go out'];
+    }
+    if (hour >= 17 && hour < 22) {
+      return ['social', 'hungry', 'tired but restless', 'need to chill'];
+    }
+    return ['restless', 'want something calm', 'need company', 'just scrolling'];
+  }
+
+  bool get _canSubmit =>
+      _selected != null || (_showInput && _ctrl.text.trim().isNotEmpty);
+
+  void _submit() {
+    if (!_canSubmit) return;
+    final answer =
+        _showInput ? _ctrl.text.trim() : _selected!;
+    HapticFeedback.mediumImpact();
+    widget.onAnswer(answer);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.accent;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          24, 14, 24, MediaQuery.of(context).viewInsets.bottom + 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: widget.onBack,
+            child: const Text('← back',
+                style:
+                    TextStyle(color: TromblColors.textMuted, fontSize: 13)),
+          ),
+          const Spacer(),
+
+          const Text(
+            "ok i'm clearly missing it.\nwhat's actually going on?",
+            style: TextStyle(
+              fontFamily: TromblText.serif,
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: TromblColors.text,
+              height: 1.2,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'pick one — trom decides from there.',
+            style: TextStyle(
+              color: TromblColors.textSub,
+              fontSize: 13,
+              fontFamily: TromblText.sans,
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // Tappable chips
+          Wrap(
+            spacing: 9,
+            runSpacing: 9,
+            children: [
+              ..._chips.map((chip) => GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        _selected = chip;
+                        _showInput = false;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _selected == chip
+                            ? accent.withValues(alpha: 0.14)
+                            : TromblColors.card,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: _selected == chip
+                              ? accent.withValues(alpha: 0.45)
+                              : TromblColors.border,
+                          width: _selected == chip ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Text(
+                        chip,
+                        style: TextStyle(
+                          color: _selected == chip
+                              ? accent
+                              : TromblColors.textSub,
+                          fontSize: 13,
+                          fontWeight: _selected == chip
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          fontFamily: TromblText.sans,
+                        ),
+                      ),
+                    ),
+                  )),
+              // "type it" chip
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _showInput = true;
+                    _selected = null;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _showInput
+                        ? accent.withValues(alpha: 0.08)
+                        : TromblColors.card,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: _showInput
+                          ? accent.withValues(alpha: 0.3)
+                          : TromblColors.border,
+                    ),
+                  ),
+                  child: Text(
+                    'type it →',
+                    style: TextStyle(
+                      color:
+                          _showInput ? accent : TromblColors.textMuted,
+                      fontSize: 13,
+                      fontFamily: TromblText.sans,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          if (_showInput) ...[
+            const SizedBox(height: 16),
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              style: const TextStyle(
+                  color: TromblColors.text,
+                  fontSize: 14,
+                  fontFamily: TromblText.sans),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'working but restless, hungry, anxious...',
+                hintStyle: const TextStyle(
+                    color: TromblColors.textMuted, fontSize: 13),
+                filled: true,
+                fillColor: TromblColors.card,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 14),
+              ),
+            ),
+          ],
+
+          const Spacer(),
+
+          // Submit — enabled only once something is picked/typed.
+          GestureDetector(
+            onTap: _canSubmit ? _submit : null,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 150),
+              opacity: _canSubmit ? 1.0 : 0.35,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 17),
                 decoration: BoxDecoration(
-                  color: TromblColors.card,
+                  gradient: const LinearGradient(
+                    colors: [TromblColors.fomo, TromblColors.jomo],
+                  ),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: TromblColors.border),
                 ),
-                child: Text(
-                  rerollCount >= 1 ? 'still nah' : 'nah, something else',
+                child: const Text(
+                  'trom, figure it out →',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: TromblColors.textSub,
-                    fontWeight: FontWeight.w600,
+                  style: TextStyle(
+                    color: Color(0xFF090909),
+                    fontWeight: FontWeight.w800,
                     fontSize: 15,
                     fontFamily: TromblText.sans,
                   ),
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
