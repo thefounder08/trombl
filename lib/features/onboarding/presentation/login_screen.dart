@@ -68,9 +68,9 @@ class LoginScreen extends HookConsumerWidget {
 
     Future<void> verifyOtp() async {
       final code = otp.text.trim();
-      if (code.length < 6) {
+      if (code.length < 8) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("enter the full code from ur email.")),
+          const SnackBar(content: Text("enter the full 8-digit code from ur email.")),
         );
         return;
       }
@@ -137,7 +137,7 @@ class LoginScreen extends HookConsumerWidget {
               const SizedBox(height: 10),
               Text(
                 sent.value
-                    ? 'enter the code trom sent to ${sentEmail.value}'
+                    ? 'enter the 8-digit code from ur email to ${sentEmail.value}\n(ignore any "verify" link — just type the code)'
                     : 'drop ur email — trom sends a code, no passwords.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13.5, color: TromblColors.textSub, height: 1.5),
@@ -189,7 +189,7 @@ class LoginScreen extends HookConsumerWidget {
                   controller: otp,
                   keyboardType: TextInputType.visiblePassword,
                   textAlign: TextAlign.center,
-                  maxLength: 6,
+                  maxLength: 8,
                   autocorrect: false,
                   enableSuggestions: false,
                   style: const TextStyle(
@@ -200,7 +200,7 @@ class LoginScreen extends HookConsumerWidget {
                   ),
                   decoration: InputDecoration(
                     counterText: '',
-                    hintText: '······',
+                    hintText: '········',
                     hintStyle: const TextStyle(color: TromblColors.textMuted, letterSpacing: 8),
                     filled: true,
                     fillColor: TromblColors.card,
@@ -210,7 +210,7 @@ class LoginScreen extends HookConsumerWidget {
                     ),
                   ),
                   onChanged: (v) {
-                    if (v.length == 6 && !loading.value) verifyOtp();
+                    if (v.length == 8 && !loading.value) verifyOtp();
                   },
                 ),
                 const SizedBox(height: 14),

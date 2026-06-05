@@ -10,6 +10,7 @@ import '../../home/providers/home_providers.dart';
 import '../../menu/domain/action_engine.dart';
 import '../../menu/domain/menu_models.dart';
 import '../../plan/presentation/create_plan_screen.dart';
+import '../../vibe/providers/session_providers.dart';
 import '../providers/reaction_provider.dart';
 
 /// Passed via GoRouter's `extra` parameter.
@@ -38,6 +39,7 @@ class ResponseScreen extends ConsumerStatefulWidget {
 
 class _ResponseScreenState extends ConsumerState<ResponseScreen> {
   bool _loading = false;
+  bool _launched = false; // true after external app opens
 
   ResponseArgs get args => widget.args;
 
@@ -55,6 +57,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
         'solo'     => "close this and go. u already know what to do.",
         _          => "one thing. right now. just start.",
       };
+
 
   Future<void> _textSquad() async {
     if (_loading) return;
@@ -108,6 +111,9 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
           AnalyticsService.dndEntered();
           context.push('/dnd');
         case ActionResult.launched:
+          // Stay on screen — user returns from external app and sees the
+          // affirmation + "fr did it / nah" confirmation prompt.
+          setState(() => _launched = true);
         case ActionResult.comingSoon:
         case ActionResult.failed:
           ref.invalidate(homeGreetingProvider);
@@ -117,6 +123,15 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
       ref.invalidate(homeGreetingProvider);
       context.go('/home');
     }
+  }
+
+  Future<void> _markDone(bool done) async {
+    HapticFeedback.selectionClick();
+    await ref
+        .read(sessionRepositoryProvider)
+        .setPickDone(args.pick.id, done);
+    ref.invalidate(homeGreetingProvider);
+    if (mounted) context.go('/home');
   }
 
   @override
@@ -444,7 +459,11 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
               // ── Pinned CTAs — clear hierarchy ──────────────────────────────
               Padding(
                 padding: const EdgeInsets.only(bottom: 24),
-                child: Column(
+                child: _launched ? _LaunchedCtas(
+                  accent: accent,
+                  tag: args.tag,
+                  onDone: _markDone,
+                ) : Column(
                   children: [
                     // PRIMARY — "i'm on it →"
                     GestureDetector(
@@ -561,6 +580,130 @@ class _TypingIndicatorState extends State<_TypingIndicator>
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── Post-launch CTAs ─────────────────────────────────────────────────────────
+// Shown after user is sent to external app via "i'm on it →". When they return
+// to trombl, they see an affirmation + "fr did it / nah" to mark completion.
+
+class _LaunchedCtas extends StatelessWidget {
+  const _LaunchedCtas({
+    required this.accent,
+    required this.tag,
+    required this.onDone,
+  });
+  final Color accent;
+  final String tag;
+  final void Function(bool done) onDone;
+
+  static String _header(String tag) => switch (tag) {
+        'squad'    => "text sent. 🔥",
+        'discover' => "going out? 🔥",
+        'order in' => "on its way. 🔥",
+        'rest'     => "resting now. 🛌",
+        'content'  => "just posted. 🔥",
+        _          => "you're on it. 🔥",
+      };
+
+  static String _motivation(String tag) => switch (tag) {
+        'squad'    => "u reached out. that's fomo in action.",
+        'discover' => "u chose to go out. that's always worth it.",
+        'order in' => "treating urself is not optional.",
+        'rest'     => "ur body asked for this and u listened.",
+        'content'  => "being present beats being perfect.",
+        'solo'     => "u chose the solo vibe. giving self-sufficient energy.",
+        _          => "u committed to something. that's already the win.",
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Affirmation card
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withValues(alpha: 0.22)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _header(tag),
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                _motivation(tag),
+                style: const TextStyle(
+                  color: TromblColors.textSub,
+                  fontSize: 13,
+                  fontFamily: TromblText.sans,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // "fr did it" — primary
+        GestureDetector(
+          onTap: () => onDone(true),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [accent, accent.withValues(alpha: 0.8)]),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text(
+              'fr did it ✓',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF090909),
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                fontFamily: TromblText.sans,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // "nah" — ghost
+        GestureDetector(
+          onTap: () => onDone(false),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: TromblColors.border),
+            ),
+            child: const Text(
+              "nah didn't happen",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: TromblColors.textSub,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontFamily: TromblText.sans,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
