@@ -84,22 +84,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ref.read(activeSessionProvider.notifier).switchVibe();
                     },
                   ),
-                  GestureDetector(
-                    onTap: () => context.push('/profile'),
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: TromblColors.card,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: TromblColors.border),
-                      ),
-                      child: const Center(
-                        child: Text('○',
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          context.push('/checkin');
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: TromblColors.card,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: TromblColors.border),
+                          ),
+                          child: const Text(
+                            '📦 wrap up',
                             style: TextStyle(
-                                color: TromblColors.textSub, fontSize: 14)),
+                              color: TromblColors.textSub,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: TromblText.sans,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => context.push('/profile'),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: TromblColors.card,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: TromblColors.border),
+                          ),
+                          child: const Center(
+                            child: Text('○',
+                                style: TextStyle(
+                                    color: TromblColors.textSub, fontSize: 14)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -446,44 +476,6 @@ class _Zone3 extends ConsumerWidget {
         if (hasActivity) ...[
           _ActivityHandle(greetingData: data),
           const SizedBox(height: 20),
-        ],
-
-        // Wrap the day — visible when user has picks to close out
-        if (data != null &&
-            (data.todayPicks.isNotEmpty ||
-                data.recentAccepted.isNotEmpty)) ...[
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              GoRouter.of(context).push('/checkin');
-            },
-            child: Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-              decoration: BoxDecoration(
-                color: TromblColors.card,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: TromblColors.border),
-              ),
-              child: const Row(
-                children: [
-                  Text('📦', style: TextStyle(fontSize: 14)),
-                  SizedBox(width: 8),
-                  Text(
-                    "wrap ur day →",
-                    style: TextStyle(
-                      color: TromblColors.textSub,
-                      fontSize: 13,
-                      fontFamily: TromblText.sans,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
         ],
 
         // Profile icon tap target (subtle — no label, profile has its own page)

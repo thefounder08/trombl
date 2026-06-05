@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../core/observability/analytics_service.dart';
 import '../providers/session_providers.dart';
+import '../../onboarding/presentation/onboarding_screen.dart' show onboardingCompletedProvider;
 
 /// The heart of the app: fomo vs jomo. Picking creates a real session row.
 class VibeScreen extends ConsumerStatefulWidget {
@@ -59,8 +60,24 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
     ref.watch(activeSessionProvider);
     final restored = ref.watch(sessionRestoredProvider);
 
-    // While restore is in flight — show a subtle loading state, not pure black.
-    if (!restored) {
+    // Redirect to onboarding if the user hasn't completed it yet.
+    ref.listen(onboardingCompletedProvider, (_, next) {
+      if (next.valueOrNull == false && mounted) {
+        context.go('/onboarding');
+      }
+    });
+    final onboardingStatus = ref.watch(onboardingCompletedProvider);
+
+    // Show loading while restoring session or checking onboarding status.
+    if (!restored || onboardingStatus.isLoading) {
+      return const Scaffold(
+        backgroundColor: TromblColors.bg,
+        body: _TromLoadingScreen(),
+      );
+    }
+
+    // Onboarding not complete — listener above will redirect; show loading meanwhile.
+    if (onboardingStatus.valueOrNull == false) {
       return const Scaffold(
         backgroundColor: TromblColors.bg,
         body: _TromLoadingScreen(),

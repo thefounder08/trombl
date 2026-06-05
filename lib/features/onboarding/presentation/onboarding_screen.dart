@@ -1,41 +1,146 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
+import '../../vibe/providers/session_providers.dart';
 
-/// Three-slide intro shown once to new users after the name-setup screen.
-/// Teaches fomo vs jomo before the first vibe pick.
-///
-/// Navigates to /vibe when done. Skip is available on every slide.
-class OnboardingScreen extends StatefulWidget {
+// ─── Screen definitions ───────────────────────────────────────────────────────
+
+class _ScreenDef {
+  const _ScreenDef({
+    required this.emoji,
+    required this.question,
+    required this.sub,
+    required this.options,
+    required this.multiSelect,
+  });
+  final String emoji;
+  final String question;
+  final String sub;
+  final List<String> options;
+  final bool multiSelect;
+}
+
+const _screens = [
+  _ScreenDef(
+    emoji: '🎯',
+    question: "what are you\nhere for?",
+    sub: "pick everything that feels right",
+    options: ['things to do', 'productivity', 'fitness', 'social life', 'explore city', 'surprise me'],
+    multiSelect: true,
+  ),
+  _ScreenDef(
+    emoji: '✨',
+    question: "your vibe?",
+    sub: "be honest, trom doesn't judge",
+    options: ['builder', 'social', 'explorer', 'cozy', 'mix'],
+    multiSelect: false,
+  ),
+  _ScreenDef(
+    emoji: '📅',
+    question: "what's your\nschedule?",
+    sub: "helps trom pick the right time to push u",
+    options: ['student', '9-5', 'freelancer', 'shifts'],
+    multiSelect: false,
+  ),
+  _ScreenDef(
+    emoji: '🌤',
+    question: "weekends?",
+    sub: "no wrong answer",
+    options: ['stay home', 'go out', 'depends'],
+    multiSelect: false,
+  ),
+  _ScreenDef(
+    emoji: '🔥',
+    question: "what do you want\nmore of?",
+    sub: "this shapes everything trom suggests",
+    options: ['friends', 'fitness', 'money', 'creativity', 'balance', 'memories'],
+    multiSelect: true,
+  ),
+];
+
+// ─── Provider for the onboarding completion check ─────────────────────────────
+
+final onboardingCompletedProvider = FutureProvider.autoDispose<bool>((ref) async {
+  final user = ref.read(supabaseProvider).auth.currentUser;
+  if (user == null) return true;
+  final profile = await ref.read(sessionRepositoryProvider).getProfile();
+  return profile?.onboardingCompleted ?? false;
+});
+
+// ─── Main screen ─────────────────────────────────────────────────────────────
+
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _ctrl = PageController();
   int _page = 0;
+  bool _saving = false;
 
-  static const _slides = [_Slide0(), _Slide1(), _Slide2()];
+  // Answers stored as lists (single-select screens store one item)
+  final List<List<String>> _answers = List.generate(_screens.length, (_) => []);
+
+  List<String> get _current => _answers[_page];
+  _ScreenDef get _def => _screens[_page];
+
+  void _toggleOption(String option) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (_def.multiSelect) {
+        if (_current.contains(option)) {
+          _current.remove(option);
+        } else {
+          _current.add(option);
+        }
+      } else {
+        _current
+          ..clear()
+          ..add(option);
+      }
+    });
+  }
+
+  bool get _canProceed => _current.isNotEmpty;
 
   void _next() {
+    if (!_canProceed) return;
     HapticFeedback.lightImpact();
-    if (_page < _slides.length - 1) {
+    if (_page < _screens.length - 1) {
       _ctrl.nextPage(
         duration: const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
       );
     } else {
-      _done();
+      _finish();
     }
   }
 
-  void _done() {
+  Future<void> _finish() async {
+    if (_saving) return;
+    setState(() => _saving = true);
     HapticFeedback.heavyImpact();
-    context.go('/vibe');
+
+    try {
+      await ref.read(sessionRepositoryProvider).saveOnboardingData(
+            goals: _answers[0],
+            archetype: _answers[1].firstOrNull ?? '',
+            scheduleType: _answers[2].firstOrNull ?? '',
+            weekendPref: _answers[3].firstOrNull ?? '',
+            wantsMore: _answers[4],
+          );
+    } catch (_) {
+      // Non-fatal — let user proceed even if save fails
+    }
+
+    if (mounted) context.go('/vibe');
   }
 
   @override
@@ -46,102 +151,108 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLast = _page == _slides.length - 1;
+    final isLast = _page == _screens.length - 1;
 
     return Scaffold(
       backgroundColor: TromblColors.bg,
       body: SafeArea(
         child: Column(
           children: [
-            // Skip — top right, hidden on last slide
-            if (!isLast)
-              Align(
-                alignment: Alignment.topRight,
-                child: GestureDetector(
-                  onTap: _done,
-                  child: const Padding(
-                    padding: EdgeInsets.fromLTRB(0, 16, 24, 0),
-                    child: Text(
-                      'skip',
-                      style: TextStyle(
-                        fontFamily: TromblText.sans,
-                        color: TromblColors.textMuted,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            else
-              const SizedBox(height: 32),
-
-            // Slides
-            Expanded(
-              child: PageView(
-                controller: _ctrl,
-                onPageChanged: (i) => setState(() => _page = i),
-                children: _slides,
-              ),
-            ),
-
-            // Dots + CTA
+            // ── Top bar: progress dots + skip ────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(26, 16, 26, 32),
-              child: Column(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Row(
                 children: [
-                  // Page dots
+                  // Progress dots
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(_slides.length, (i) {
+                    children: List.generate(_screens.length, (i) {
+                      final done = i < _page;
                       final active = i == _page;
                       return AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        margin: const EdgeInsets.only(right: 6),
                         width: active ? 20 : 6,
                         height: 6,
                         decoration: BoxDecoration(
-                          color: active
-                              ? TromblColors.text
-                              : TromblColors.textMuted,
+                          color: done
+                              ? TromblColors.jomo.withValues(alpha: 0.5)
+                              : active
+                                  ? TromblColors.text
+                                  : TromblColors.textMuted,
                           borderRadius: BorderRadius.circular(3),
                         ),
                       );
                     }),
                   ),
-                  const SizedBox(height: 24),
-                  // CTA button
-                  GestureDetector(
-                    onTap: _next,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 17),
-                      decoration: BoxDecoration(
-                        gradient: isLast
-                            ? const LinearGradient(
-                                colors: [TromblColors.fomo, TromblColors.jomo])
-                            : null,
-                        color: isLast ? null : TromblColors.card,
-                        borderRadius: BorderRadius.circular(16),
-                        border: isLast
-                            ? null
-                            : Border.all(color: TromblColors.border),
-                      ),
-                      child: Text(
-                        isLast ? "ok let's go →" : 'next →',
-                        textAlign: TextAlign.center,
+                  const Spacer(),
+                  if (!isLast)
+                    GestureDetector(
+                      onTap: _finish,
+                      child: const Text(
+                        'skip all',
                         style: TextStyle(
+                          color: TromblColors.textMuted,
+                          fontSize: 13,
                           fontFamily: TromblText.sans,
-                          color: isLast
-                              ? const Color(0xFF090909)
-                              : TromblColors.textSub,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
                         ),
                       ),
                     ),
-                  ),
                 ],
+              ),
+            ),
+
+            // ── Page view ────────────────────────────────────────────────────
+            Expanded(
+              child: PageView.builder(
+                controller: _ctrl,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged: (i) => setState(() => _page = i),
+                itemCount: _screens.length,
+                itemBuilder: (_, i) => _OnboardingPage(
+                  def: _screens[i],
+                  selected: _answers[i],
+                  onToggle: i == _page ? _toggleOption : (_) {},
+                ),
+              ),
+            ),
+
+            // ── CTA ───────────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+              child: GestureDetector(
+                onTap: _canProceed && !_saving ? _next : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 17),
+                  decoration: BoxDecoration(
+                    gradient: _canProceed && !_saving
+                        ? const LinearGradient(
+                            colors: [TromblColors.fomo, TromblColors.jomo])
+                        : null,
+                    color: _canProceed && !_saving ? null : TromblColors.card,
+                    borderRadius: BorderRadius.circular(16),
+                    border: _canProceed
+                        ? null
+                        : Border.all(color: TromblColors.border),
+                  ),
+                  child: Text(
+                    _saving
+                        ? 'saving...'
+                        : isLast
+                            ? "let's go →"
+                            : 'next →',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: TromblText.sans,
+                      color: _canProceed && !_saving
+                          ? const Color(0xFF090909)
+                          : TromblColors.textMuted,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -151,191 +262,83 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-// ─── Slides ───────────────────────────────────────────────────────────────────
+// ─── Single onboarding page ───────────────────────────────────────────────────
 
-class _Slide0 extends StatelessWidget {
-  const _Slide0();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 28),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('🔥', style: TextStyle(fontSize: 52)),
-          SizedBox(height: 24),
-          Text(
-            "u never know what to do.\ntrom does.",
-            style: TextStyle(
-              fontFamily: TromblText.serif,
-              fontSize: 34,
-              fontWeight: FontWeight.w700,
-              color: TromblColors.text,
-              height: 1.15,
-              letterSpacing: -0.5,
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            "trom is ur chaotic bestie.\nchaotic, warm, and very opinionated\nabout what u should do tonight.",
-            style: TextStyle(
-              fontFamily: TromblText.sans,
-              fontSize: 15,
-              color: TromblColors.textSub,
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Slide1 extends StatelessWidget {
-  const _Slide1();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 28),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "fomo or jomo?",
-            style: TextStyle(
-              fontFamily: TromblText.serif,
-              fontSize: 34,
-              fontWeight: FontWeight.w700,
-              color: TromblColors.text,
-              height: 1.15,
-              letterSpacing: -0.5,
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            "every day starts with one honest question.",
-            style: TextStyle(
-              fontFamily: TromblText.sans,
-              fontSize: 15,
-              color: TromblColors.textSub,
-              height: 1.5,
-            ),
-          ),
-          SizedBox(height: 32),
-          // Fomo card preview
-          _VibePreviewCard(
-            emoji: '⚡',
-            vibe: 'fomo',
-            label: 'fomo',
-            sub: 'i want everything',
-            accent: TromblColors.fomo,
-          ),
-          SizedBox(height: 12),
-          // Jomo card preview
-          _VibePreviewCard(
-            emoji: '🛌',
-            vibe: 'jomo',
-            label: 'jomo',
-            sub: 'i want nothing',
-            accent: TromblColors.jomo,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Slide2 extends StatelessWidget {
-  const _Slide2();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 28),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('✨', style: TextStyle(fontSize: 52)),
-          SizedBox(height: 24),
-          Text(
-            "trom picks a side.\nu just go live it.",
-            style: TextStyle(
-              fontFamily: TromblText.serif,
-              fontSize: 34,
-              fontWeight: FontWeight.w700,
-              color: TromblColors.text,
-              height: 1.15,
-              letterSpacing: -0.5,
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            "pick ur vibe. trom shows u what to do.\ntap an option. trom reacts.\n\nno planning. no overthinking.\njust go.",
-            style: TextStyle(
-              fontFamily: TromblText.sans,
-              fontSize: 15,
-              color: TromblColors.textSub,
-              height: 1.6,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Vibe preview card (used on slide 1) ─────────────────────────────────────
-
-class _VibePreviewCard extends StatelessWidget {
-  const _VibePreviewCard({
-    required this.emoji,
-    required this.vibe,
-    required this.label,
-    required this.sub,
-    required this.accent,
+class _OnboardingPage extends StatelessWidget {
+  const _OnboardingPage({
+    required this.def,
+    required this.selected,
+    required this.onToggle,
   });
-  final String emoji, vibe, label, sub;
-  final Color accent;
+  final _ScreenDef def;
+  final List<String> selected;
+  final void Function(String) onToggle;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: TromblColors.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withValues(alpha: 0.3)),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 26)),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: TromblText.sans,
-                  color: accent,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+          Text(def.emoji, style: const TextStyle(fontSize: 44)),
+          const SizedBox(height: 18),
+          Text(
+            def.question,
+            style: const TextStyle(
+              fontFamily: TromblText.serif,
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: TromblColors.text,
+              height: 1.15,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            def.sub,
+            style: const TextStyle(
+              fontFamily: TromblText.sans,
+              fontSize: 13,
+              color: TromblColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: def.options.map((opt) {
+              final sel = selected.contains(opt);
+              return GestureDetector(
+                onTap: () => onToggle(opt),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 18, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: sel
+                        ? TromblColors.jomo.withValues(alpha: 0.15)
+                        : TromblColors.card,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: sel
+                          ? TromblColors.jomo.withValues(alpha: 0.55)
+                          : TromblColors.border,
+                      width: sel ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    opt,
+                    style: TextStyle(
+                      fontFamily: TromblText.sans,
+                      color: sel ? TromblColors.jomo : TromblColors.textSub,
+                      fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
-              ),
-              Text(
-                sub,
-                style: const TextStyle(
-                  fontFamily: TromblText.sans,
-                  color: TromblColors.textSub,
-                  fontSize: 13,
-                ),
-              ),
-            ],
+              );
+            }).toList(),
           ),
         ],
       ),

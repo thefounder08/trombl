@@ -15,6 +15,12 @@ class Profile with _$Profile {
     String? handle,
     String? city,
     String? lifestyle,
+    @JsonKey(name: 'onboarding_completed') @Default(false) bool onboardingCompleted,
+    @Default(<String>[]) List<String> goals,
+    String? archetype,
+    @JsonKey(name: 'schedule_type') String? scheduleType,
+    @JsonKey(name: 'weekend_pref') String? weekendPref,
+    @JsonKey(name: 'wants_more') @Default(<String>[]) List<String> wantsMore,
   }) = _Profile;
 
   factory Profile.fromJson(Map<String, dynamic> json) =>

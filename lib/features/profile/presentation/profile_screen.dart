@@ -3,12 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import '../../../core/ai/models/llm_message.dart';
-import '../../../core/ai/system_prompts.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
-import '../../../shared/result.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../plans/providers/plan_providers.dart';
 
@@ -25,50 +22,21 @@ final _currentProfileProvider = FutureProvider.autoDispose<Profile?>((ref) {
   return ref.watch(sessionRepositoryProvider).getProfile();
 });
 
-final _weeklyReadProvider = FutureProvider.autoDispose<String>((ref) async {
-  final sessions = await ref.watch(_recentSessionsProvider.future);
-  if (sessions.isEmpty) return '';
-
-  final picks = await ref
-      .read(sessionRepositoryProvider)
-      .picksForSessions(sessions.map((s) => s.id).toList());
-
-  final fomo = sessions.where((s) => s.vibe == 'fomo').length;
-  final jomo = sessions.length - fomo;
-
-  final tagCounts = <String, int>{};
-  for (final p in picks) {
-    tagCounts[p.tag] = (tagCounts[p.tag] ?? 0) + 1;
-  }
-  final topTags = (tagCounts.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value)))
-      .take(3)
-      .map((e) => e.key.replaceAll('-', ' '))
-      .join(', ');
-
-  final doneRate = picks.isEmpty
-      ? 0
-      : (picks.where((p) => p.done).length * 100 ~/ picks.length);
-
-  final stats =
-      '${sessions.length} sessions: $fomo fomo, $jomo jomo. '
-      'most into: ${topTags.isEmpty ? "nothing yet" : topTags}. '
-      'did $doneRate% of things picked.';
-
-  final Result<String> result = await ref.read(llmProvider).generate(
-        LlmRequest(
-          system: SystemPrompts.weeklyRead(stats),
-          prompt: stats,
-        ),
-      );
-  return switch (result) {
-    Success(:final data) => data,
-    Failure(:final error) => error,
-  };
-});
-
 final _recentSessionsProvider = FutureProvider.autoDispose<List<Session>>((ref) async {
   return ref.watch(sessionRepositoryProvider).recentSessions();
+});
+
+final _profileStatsProvider = FutureProvider.autoDispose<({int daysActive, int picksCompleted, List<Pick> recentWins})>((ref) async {
+  final sessions = await ref.watch(_recentSessionsProvider.future);
+  if (sessions.isEmpty) return (daysActive: 0, picksCompleted: 0, recentWins: <Pick>[]);
+  final picks = await ref.read(sessionRepositoryProvider)
+      .picksForSessions(sessions.map((s) => s.id).toList());
+  final donePicks = picks.where((p) => p.done).toList();
+  return (
+    daysActive: sessions.where((s) => s.wrappedAt != null).length,
+    picksCompleted: donePicks.length,
+    recentWins: donePicks.take(3).toList(),
+  );
 });
 
 void _showEditProfile(BuildContext context, WidgetRef ref, Profile? profile) {
@@ -188,20 +156,38 @@ class _ProfileField extends StatelessWidget {
   }
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+String _formatJoinDate(String? isoDate) {
+  if (isoDate == null) return '';
+  try {
+    final dt = DateTime.parse(isoDate);
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                    'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    return 'joined ${months[dt.month - 1]} ${dt.year}';
+  } catch (_) {
+    return '';
+  }
+}
+
+// ─── Profile screen ───────────────────────────────────────────────────────────
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final weeklyRead = ref.watch(_weeklyReadProvider);
     final myPlans = ref.watch(myPlansProvider);
     final streak = ref.watch(streakProvider).valueOrNull ?? 0;
+    final stats = ref.watch(_profileStatsProvider);
+    final activeSession = ref.watch(activeSessionProvider);
+    final user = ref.watch(supabaseProvider).auth.currentUser;
+    final joinDate = _formatJoinDate(user?.createdAt);
 
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // Scrollable content
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
@@ -209,7 +195,7 @@ class ProfileScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header row
+                    // ── Nav row ────────────────────────────────────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -241,78 +227,123 @@ class ProfileScreen extends ConsumerWidget {
                             ],
                           ],
                         ),
-                        ref.watch(_currentProfileProvider).maybeWhen(
-                          data: (profile) => GestureDetector(
-                            onTap: () =>
-                                _showEditProfile(context, ref, profile),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  profile?.displayName ??
-                                      (profile?.handle != null
-                                          ? '@${profile!.handle}'
-                                          : 'set name →'),
+                        const SizedBox.shrink(),
+                      ],
+                    ),
+
+                    const SizedBox(height: 22),
+
+                    // ── Profile header ────────────────────────────────────
+                    ref.watch(_currentProfileProvider).maybeWhen(
+                      data: (profile) => _ProfileHeader(
+                        profile: profile,
+                        joinDate: joinDate,
+                        onEdit: () => _showEditProfile(context, ref, profile),
+                      ),
+                      orElse: () => const SizedBox.shrink(),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // ── About You ─────────────────────────────────────────
+                    ref.watch(_currentProfileProvider).maybeWhen(
+                      data: (profile) {
+                        final chips = <String>[
+                          if (profile?.archetype != null) profile!.archetype!,
+                          if (profile?.scheduleType != null) profile!.scheduleType!,
+                          if (profile?.weekendPref != null) profile!.weekendPref!,
+                          ...?profile?.wantsMore.map((w) => 'wants $w'),
+                          ...?profile?.goals,
+                          if (profile?.lifestyle != null) profile!.lifestyle!,
+                        ];
+                        if (chips.isEmpty) return const SizedBox.shrink();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('ABOUT YOU',
+                                style: TextStyle(
+                                    color: TromblColors.textMuted,
+                                    fontSize: 10,
+                                    letterSpacing: 2,
+                                    fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: chips.map((c) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: TromblColors.card,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color: TromblColors.jomo.withValues(alpha: 0.18)),
+                                ),
+                                child: Text(
+                                  c,
                                   style: const TextStyle(
-                                      color: TromblColors.textMuted,
-                                      fontSize: 13,
+                                      color: TromblColors.jomo,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600),
                                 ),
-                                if (profile?.city != null)
-                                  Text(
-                                    profile!.city!,
-                                    style: const TextStyle(
-                                        color: TromblColors.textMuted,
-                                        fontSize: 11),
-                                  ),
-                              ],
+                              )).toList(),
                             ),
-                          ),
-                          orElse: () => const SizedBox.shrink(),
-                        ),
-                      ], // end inner Row children
-                    ), // end header Row
-                    const SizedBox(height: 18),
-                    // Trom's weekly read
-                    const Text('TROM\'S READ ON YOU',
+                            const SizedBox(height: 28),
+                          ],
+                        );
+                      },
+                      orElse: () => const SizedBox.shrink(),
+                    ),
+
+                    // ── Your stats ─────────────────────────────────────────
+                    const Text('YOUR STATS · LAST 7 DAYS',
                         style: TextStyle(
                             color: TromblColors.textMuted,
                             fontSize: 10,
                             letterSpacing: 2,
                             fontWeight: FontWeight.w700)),
                     const SizedBox(height: 12),
-                    weeklyRead.when(
-                      loading: () => const _TromTyping(),
-                      error: (_, __) => const Text(
-                        "trom's still figuring u out.\npick a few things and patterns show up here.",
-                        style: TextStyle(
-                            fontFamily: TromblText.serif,
-                            fontSize: 22,
-                            color: TromblColors.text,
-                            height: 1.25),
+                    stats.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                      data: (s) => _StatsRow(
+                        daysActive: s.daysActive,
+                        picksCompleted: s.picksCompleted,
+                        plansCount: myPlans.valueOrNull?.length ?? 0,
+                        streak: streak,
                       ),
-                      data: (text) => text.isEmpty
-                          ? const Text(
-                              "trom's still figuring u out.\npick a few things and patterns show up here.",
-                              style: TextStyle(
-                                  fontFamily: TromblText.serif,
-                                  fontSize: 22,
-                                  color: TromblColors.text,
-                                  height: 1.25),
-                            )
-                          : Text(
-                              text,
-                              style: const TextStyle(
-                                  fontFamily: TromblText.serif,
-                                  fontSize: 22,
-                                  color: TromblColors.text,
-                                  height: 1.25),
-                            ),
                     ),
-                    // Memory nodes
-                    _MemorySection(),
+
                     const SizedBox(height: 28),
-                    // Past days
+
+                    // ── Recent wins ────────────────────────────────────────
+                    stats.maybeWhen(
+                      data: (s) {
+                        if (s.recentWins.isEmpty) return const SizedBox.shrink();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('RECENT WINS',
+                                style: TextStyle(
+                                    color: TromblColors.textMuted,
+                                    fontSize: 10,
+                                    letterSpacing: 2,
+                                    fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 12),
+                            ...s.recentWins.map((p) => _WinRow(pick: p)),
+                            const SizedBox(height: 28),
+                          ],
+                        );
+                      },
+                      orElse: () => const SizedBox.shrink(),
+                    ),
+
+                    // ── Trom remembers ─────────────────────────────────────
+                    _MemorySection(),
+
+                    const SizedBox(height: 28),
+
+                    // ── Past days ──────────────────────────────────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -333,8 +364,10 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     _RecentDaysSummary(),
+
                     const SizedBox(height: 28),
-                    // My plans
+
+                    // ── My plans ───────────────────────────────────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -373,32 +406,284 @@ class ProfileScreen extends ConsumerWidget {
                                   .toList(),
                             ),
                     ),
+
+                    // ── Wrap up your day (fallback if missed) ──────────────
+                    if (activeSession != null && activeSession.wrappedAt == null) ...[
+                      const SizedBox(height: 28),
+                      GestureDetector(
+                        onTap: () => context.push('/checkin'),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: TromblColors.card,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: TromblColors.border),
+                          ),
+                          child: const Row(
+                            children: [
+                              Text('📦', style: TextStyle(fontSize: 14)),
+                              SizedBox(width: 8),
+                              Text(
+                                "wrap ur day →",
+                                style: TextStyle(
+                                  color: TromblColors.textSub,
+                                  fontSize: 13,
+                                  fontFamily: TromblText.sans,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
-            // App version
+
+            // ── Footer ────────────────────────────────────────────────────
             const _AppVersion(),
-            // Pinned sign-out
             GestureDetector(
               onTap: () async {
                 await ref.read(supabaseProvider).auth.signOut();
                 ref.read(activeSessionProvider.notifier).clear();
               },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 14),
-                child: Text('start over',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: TromblColors.textSub)),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                color: Colors.transparent,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '↺  start over',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFFE05252),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Color(0xFFE05252),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+            const SizedBox(height: 4),
           ],
         ),
       ),
     );
   }
 }
+
+// ─── Profile header card ──────────────────────────────────────────────────────
+
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({
+    required this.profile,
+    required this.joinDate,
+    required this.onEdit,
+  });
+  final Profile? profile;
+  final String joinDate;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = profile?.displayName ??
+        (profile?.handle != null ? '@${profile!.handle}' : null);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: TromblColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: TromblColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name ?? 'set ur name',
+                      style: TextStyle(
+                        fontFamily: TromblText.serif,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        color: name != null
+                            ? TromblColors.text
+                            : TromblColors.textMuted,
+                        height: 1.1,
+                      ),
+                    ),
+                    if (profile?.city != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '📍 ${profile!.city}',
+                        style: const TextStyle(
+                          color: TromblColors.textSub,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    if (joinDate.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        joinDate,
+                        style: const TextStyle(
+                          color: TromblColors.textMuted,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: onEdit,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: TromblColors.bg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: TromblColors.border),
+                  ),
+                  child: const Text(
+                    'edit →',
+                    style: TextStyle(
+                      color: TromblColors.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Stats row ────────────────────────────────────────────────────────────────
+
+class _StatsRow extends StatelessWidget {
+  const _StatsRow({
+    required this.daysActive,
+    required this.picksCompleted,
+    required this.plansCount,
+    required this.streak,
+  });
+  final int daysActive;
+  final int picksCompleted;
+  final int plansCount;
+  final int streak;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _StatChip(value: daysActive, label: 'days'),
+        const SizedBox(width: 8),
+        _StatChip(value: picksCompleted, label: 'done'),
+        const SizedBox(width: 8),
+        if (plansCount > 0) ...[
+          _StatChip(value: plansCount, label: 'plans'),
+          const SizedBox(width: 8),
+        ],
+        if (streak > 0) _StatChip(value: streak, label: '🔥 streak'),
+      ],
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.value, required this.label});
+  final int value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: TromblColors.card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: TromblColors.border),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: const TextStyle(
+              color: TromblColors.text,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              fontFamily: TromblText.sans,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: TromblColors.textMuted,
+              fontSize: 10,
+              fontFamily: TromblText.sans,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Recent win row ───────────────────────────────────────────────────────────
+
+class _WinRow extends StatelessWidget {
+  const _WinRow({required this.pick});
+  final Pick pick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          const Text('✅', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              pick.label,
+              style: const TextStyle(
+                color: TromblColors.textSub,
+                fontSize: 13,
+                fontFamily: TromblText.sans,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Plan row ─────────────────────────────────────────────────────────────────
 
 class _PlanRow extends StatelessWidget {
   const _PlanRow({required this.plan});
@@ -440,6 +725,8 @@ class _PlanRow extends StatelessWidget {
     );
   }
 }
+
+// ─── Recent days summary ──────────────────────────────────────────────────────
 
 class _RecentDaysSummary extends ConsumerWidget {
   @override
@@ -491,6 +778,8 @@ class _RecentDaysSummary extends ConsumerWidget {
   }
 }
 
+// ─── Memory section ───────────────────────────────────────────────────────────
+
 class _MemorySection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -501,7 +790,6 @@ class _MemorySection extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 28),
             const Text('TROM REMEMBERS',
                 style: TextStyle(
                     color: TromblColors.textMuted,
@@ -555,7 +843,7 @@ class _MemoryChip extends StatelessWidget {
   }
 }
 
-// ─── App version ─────────────────────────────────────────────────────────────
+// ─── App version ──────────────────────────────────────────────────────────────
 
 class _AppVersion extends StatefulWidget {
   const _AppVersion();
@@ -590,53 +878,4 @@ class _AppVersionState extends State<_AppVersion> {
             ),
           ),
         );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TromTyping extends StatefulWidget {
-  const _TromTyping();
-
-  @override
-  State<_TromTyping> createState() => _TromTypingState();
-}
-
-class _TromTypingState extends State<_TromTyping>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900))
-      ..repeat(reverse: true);
-    _anim = Tween(begin: 0.3, end: 1.0).animate(_ctrl);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) => Opacity(
-        opacity: _anim.value,
-        child: const Text(
-          'trom is reading ur patterns...',
-          style: TextStyle(
-            fontFamily: TromblText.serif,
-            fontSize: 22,
-            color: TromblColors.textMuted,
-            height: 1.25,
-          ),
-        ),
-      ),
-    );
-  }
 }

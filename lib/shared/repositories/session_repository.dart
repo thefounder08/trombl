@@ -131,7 +131,12 @@ class SessionRepository {
     }
   }
 
-  Future<void> updateProfile({String? displayName, String? handle, String? city, String? lifestyle}) async {
+  Future<void> updateProfile({
+    String? displayName,
+    String? handle,
+    String? city,
+    String? lifestyle,
+  }) async {
     try {
       final data = <String, dynamic>{};
       if (displayName != null) data['display_name'] = displayName;
@@ -140,6 +145,26 @@ class SessionRepository {
       if (lifestyle != null) data['lifestyle'] = lifestyle;
       if (data.isEmpty) return;
       await _client.from('profiles').upsert({'id': _uid, ...data});
+    } catch (_) {}
+  }
+
+  Future<void> saveOnboardingData({
+    required List<String> goals,
+    required String archetype,
+    required String scheduleType,
+    required String weekendPref,
+    required List<String> wantsMore,
+  }) async {
+    try {
+      await _client.from('profiles').upsert({
+        'id': _uid,
+        'goals': goals,
+        'archetype': archetype,
+        'schedule_type': scheduleType,
+        'weekend_pref': weekendPref,
+        'wants_more': wantsMore,
+        'onboarding_completed': true,
+      });
     } catch (_) {}
   }
 

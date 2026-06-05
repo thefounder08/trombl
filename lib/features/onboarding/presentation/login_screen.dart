@@ -88,6 +88,8 @@ class LoginScreen extends HookConsumerWidget {
           if (!context.mounted) return;
           if (profile?.displayName == null) {
             context.go('/setup');
+          } else if (!profile!.onboardingCompleted) {
+            context.go('/onboarding');
           } else if (pendingToken != null) {
             ref.read(pendingPlanTokenProvider.notifier).state = null;
             context.go('/p/$pendingToken');
@@ -145,7 +147,7 @@ class LoginScreen extends HookConsumerWidget {
               const SizedBox(height: 28),
               if (kDebugMode) ...[
                 _PrimaryButton(
-                  label: '⚡ dev skip',
+                  label: '⚡ dev skip (fresh user)',
                   onTap: loading.value ? null : () async {
                     loading.value = true;
                     try {
@@ -153,6 +155,25 @@ class LoginScreen extends HookConsumerWidget {
                         email: 'dev@trombl.com',
                         password: 'trombldev123',
                       );
+                      // Reset profile so dev account looks like a brand-new user
+                      final uid = ref.read(supabaseProvider).auth.currentUser?.id;
+                      if (uid != null) {
+                        await ref.read(supabaseProvider).from('profiles').upsert({
+                          'id': uid,
+                          'display_name': null,
+                          'handle': null,
+                          'city': null,
+                          'lifestyle': null,
+                          'onboarding_completed': false,
+                          'goals': <String>[],
+                          'archetype': null,
+                          'schedule_type': null,
+                          'weekend_pref': null,
+                          'wants_more': <String>[],
+                        });
+                      }
+                      ref.read(activeSessionProvider.notifier).clear();
+                      if (context.mounted) context.go('/setup');
                     } catch (e) {
                       debugPrint('dev login error: $e');
                     } finally {
