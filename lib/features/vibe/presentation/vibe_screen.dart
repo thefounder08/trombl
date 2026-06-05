@@ -24,6 +24,18 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
     if (_picked) return;
     setState(() => _picked = true);
     HapticFeedback.heavyImpact();
+
+    // If today's session already exists, reuse it (switch vibe if needed).
+    final existing = ref.read(activeSessionProvider);
+    if (existing != null) {
+      if (existing.vibe != vibe) {
+        await ref.read(activeSessionProvider.notifier).switchVibe();
+      }
+      AnalyticsService.vibePicked(vibe: vibe);
+      if (mounted) context.go('/home');
+      return;
+    }
+
     final city = ref.read(cityProvider);
     final err =
         await ref.read(activeSessionProvider.notifier).start(vibe, city: city);
@@ -44,14 +56,8 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
     // Watch FIRST — this initialises ActiveSessionNotifier and triggers
     // _tryRestore(). Must happen before any early return or the notifier
     // never starts and sessionRestoredProvider stays false forever.
-    final session = ref.watch(activeSessionProvider);
+    ref.watch(activeSessionProvider);
     final restored = ref.watch(sessionRestoredProvider);
-
-    // Listener only routes to /menu for RESTORED sessions.
-    // Fresh picks are handled by _pick() directly; _picked guards this.
-    ref.listen(activeSessionProvider, (_, next) {
-      if (next != null && !_picked && mounted) context.go('/home');
-    });
 
     // While restore is in flight — show a subtle loading state, not pure black.
     if (!restored) {
@@ -61,13 +67,8 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
       );
     }
 
-    // Restore done + session exists → go to menu (only if user didn't just pick).
-    if (session != null && !_picked) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) context.go('/home');
-      });
-      return const Scaffold(backgroundColor: TromblColors.bg);
-    }
+    // Restore done — always show the vibe picker so users confirm their vibe
+    // each time they open the app. _pick() reuses any existing session.
 
     final city = ref.watch(cityProvider);
     final suggested = _timeDefaultVibe();

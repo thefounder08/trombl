@@ -14,6 +14,7 @@ class Profile with _$Profile {
     @JsonKey(name: 'display_name') String? displayName,
     String? handle,
     String? city,
+    String? lifestyle,
   }) = _Profile;
 
   factory Profile.fromJson(Map<String, dynamic> json) =>

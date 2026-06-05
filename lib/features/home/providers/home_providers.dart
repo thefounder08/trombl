@@ -25,7 +25,7 @@ final homeGreetingProvider =
   final picksFuture = decideRepo.recentAiPicks(limit: 10);
   final checkinsFuture = decideRepo.pendingCheckins(limit: 3);
   final todayPicksFuture = session != null
-      ? sessionRepo.picksForSessions([session.id])
+      ? sessionRepo.picksForSessions([session.id]).then((p) => p.where((pick) => !pick.done).toList())
       : Future.value(<Pick>[]);
 
   final profile = await profileFuture;

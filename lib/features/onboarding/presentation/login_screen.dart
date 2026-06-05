@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -142,8 +143,7 @@ class LoginScreen extends HookConsumerWidget {
                 style: const TextStyle(fontSize: 13.5, color: TromblColors.textSub, height: 1.5),
               ),
               const SizedBox(height: 28),
-              // TODO: restore kDebugMode guard before release
-              if (true) ...[
+              if (kDebugMode) ...[
                 _PrimaryButton(
                   label: '⚡ dev skip',
                   onTap: loading.value ? null : () async {
@@ -189,7 +189,7 @@ class LoginScreen extends HookConsumerWidget {
                   controller: otp,
                   keyboardType: TextInputType.visiblePassword,
                   textAlign: TextAlign.center,
-                  maxLength: 8,
+                  maxLength: 6,
                   autocorrect: false,
                   enableSuggestions: false,
                   style: const TextStyle(
@@ -200,7 +200,7 @@ class LoginScreen extends HookConsumerWidget {
                   ),
                   decoration: InputDecoration(
                     counterText: '',
-                    hintText: '········',
+                    hintText: '······',
                     hintStyle: const TextStyle(color: TromblColors.textMuted, letterSpacing: 8),
                     filled: true,
                     fillColor: TromblColors.card,
@@ -210,8 +210,7 @@ class LoginScreen extends HookConsumerWidget {
                     ),
                   ),
                   onChanged: (v) {
-                    // Auto-submit when all 8 chars are typed
-                    if (v.length == 8 && !loading.value) verifyOtp();
+                    if (v.length == 6 && !loading.value) verifyOtp();
                   },
                 ),
                 const SizedBox(height: 14),

@@ -81,6 +81,26 @@ class MenuScreen extends ConsumerWidget {
                   ),
                   Row(
                     children: [
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          context.push('/decide');
+                        },
+                        child: const Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                          child: Text(
+                            'ai pick ✨',
+                            style: TextStyle(
+                              color: TromblColors.textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              fontFamily: TromblText.sans,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
                       if (pickCount >= 2)
                         GestureDetector(
                           onTap: () {
