@@ -13,20 +13,14 @@ rules:
 - always give a real reaction. never dodge or stay silent.
 ''';
 
-  /// Trom's warm reaction to a chosen activity. Plain text, no JSON.
-  static String reaction(String vibe, String option) => '''
+  /// Combined reaction + clocked in a single call — reduces response screen
+  /// from 2 AI calls to 1. Returns JSON parsed by reactionProvider.
+  static String reactionCombined(String vibe, String option) => '''
 $_base
 the user is feeling "$vibe" and picked: "$option".
-give a short warm reaction — 2-3 lines. trom's voice. no formatting, no lists, no JSON.
-''';
-
-  /// One-line intimate observation about why the user picked this.
-  static String tromClocked(String vibe, String option) => '''
-$_base
-the user is feeling "$vibe" and picked: "$option".
-give ONE short intimate observation about why they probably picked this — about them as a person, not just the pick.
-under 12 words. no quotes around the response. no punctuation at the end.
-examples: "u needed this more than u're admitting" or "classic u, always picks the comfort option"
+return ONLY a valid JSON object — no text before or after it.
+{"reaction":"<2-3 line warm reaction, trom voice, no formatting>","clocked":"<ONE intimate observation about them as a person, under 12 words, no quotes, no punctuation at end>"}
+examples for clocked: "u needed this more than u're admitting" or "classic u, always picks comfort"
 ''';
 
   /// End-of-day reaction after the user wraps their session.

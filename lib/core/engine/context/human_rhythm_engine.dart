@@ -46,6 +46,52 @@ abstract final class HumanRhythmEngine {
         : DayType.weekday;
   }
 
+  // ─── Layer 1 candidates ──────────────────────────────────────────────────
+  // Hardcoded activity sets per time period. Passed to Gemini for ranking —
+  // never generated. These are ALWAYS available; no API call ever needed.
+
+  static List<String> candidatesFor(TimePeriod period, String vibe) {
+    final base = _baseCandidates[period] ?? _baseCandidates[TimePeriod.primeTime]!;
+    final extras = vibe == 'fomo' ? _fomoExtras : _jomoExtras;
+    return [...base, ...extras];
+  }
+
+  static const _baseCandidates = <TimePeriod, List<String>>{
+    TimePeriod.deepNight: [
+      'sleep', 'box breathing', 'phone down', 'boring podcast',
+    ],
+    TimePeriod.earlyMorning: [
+      'wake up properly', 'breakfast first', 'move ur body', 'set the tone',
+    ],
+    TimePeriod.workMorning: [
+      'focus sprint', 'finish a task', 'proper lunch', 'touch grass',
+      'hydrate', 'reset',
+    ],
+    TimePeriod.workAfternoon: [
+      'proper lunch', 'touch grass', 'finish strong', 'reset energy',
+      'hydrate', 'focus sprint',
+    ],
+    TimePeriod.leisureMorning: [
+      'explore something', 'get outside', 'social plans', 'treat urself',
+      'brunch', 'slow morning',
+    ],
+    TimePeriod.leisureAfternoon: [
+      'explore something', 'get outside', 'social plans', 'treat urself',
+      'do something spontaneous', 'find an activity',
+    ],
+    TimePeriod.primeTime: [
+      'make something happen', 'text someone', 'move ur body', 'enjoy tonight',
+      'go out', 'plan the evening',
+    ],
+    TimePeriod.windDown: [
+      'slow down', 'clear ur head', 'sleep wins', 'tomorrow starts now',
+      'light entertainment', 'reading',
+    ],
+  };
+
+  static const _fomoExtras = <String>['do something u\'ll remember', 'make plans'];
+  static const _jomoExtras = <String>['protect ur energy', 'full comfort mode'];
+
   // ─── Rhythm definitions ───────────────────────────────────────────────────
 
   static HumanRhythmContext _deepNight() => const HumanRhythmContext(

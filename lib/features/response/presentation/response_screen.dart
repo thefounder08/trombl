@@ -125,7 +125,6 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
     final cardTint = accent.withValues(alpha: 0.11);
     final reactionArgs = (vibe: args.vibe, optionLabel: args.optionLabel);
     final reaction = ref.watch(reactionProvider(reactionArgs));
-    final tromClocked = ref.watch(tromClockedProvider(reactionArgs));
 
     return Scaffold(
       backgroundColor: TromblColors.bg,
@@ -242,30 +241,21 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                                     ),
                                     const SizedBox(height: 10),
 
-                                    // Reaction — MISSING 5: 23px bold Fraunces
+                                    // Reaction — always shows (static fallback on AI failure)
                                     reaction.when(
                                       loading: () => const _TypingIndicator(),
-                                      error: (_, __) => GestureDetector(
-                                        onTap: () {
-                                          HapticFeedback.lightImpact();
-                                          ref.invalidate(reactionProvider((
-                                            vibe: args.vibe,
-                                            optionLabel: args.optionLabel,
-                                          )));
-                                        },
-                                        child: const Text(
-                                          "trom went quiet.\ntap to try again.",
-                                          style: TextStyle(
-                                            fontFamily: TromblText.serif,
-                                            fontSize: 23,
-                                            fontWeight: FontWeight.w700,
-                                            color: TromblColors.textMuted,
-                                            height: 1.4,
-                                          ),
+                                      error: (_, __) => const Text(
+                                        "here's something that'll do.",
+                                        style: TextStyle(
+                                          fontFamily: TromblText.serif,
+                                          fontSize: 23,
+                                          fontWeight: FontWeight.w700,
+                                          color: TromblColors.textMuted,
+                                          height: 1.4,
                                         ),
                                       ),
                                       data: (r) => Text(
-                                        r.isNotEmpty ? r : '…',
+                                        r.reaction.isNotEmpty ? r.reaction : '…',
                                         style: const TextStyle(
                                           fontFamily: TromblText.serif,
                                           fontSize: 23,
@@ -330,10 +320,10 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                           ),
                         ),
 
-                        // ── TROM CLOCKED THIS — driven by tromClockedProvider ──
-                        tromClocked.maybeWhen(
-                          data: (clocked) {
-                            if (clocked.isEmpty) return const SizedBox.shrink();
+                        // ── TROM CLOCKED THIS — from combined reactionProvider ──
+                        reaction.maybeWhen(
+                          data: (r) {
+                            if (r.clocked.isEmpty) return const SizedBox.shrink();
                             return Padding(
                               padding: const EdgeInsets.only(top: 12),
                               child: Container(
@@ -360,7 +350,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                                     ),
                                     const SizedBox(height: 7),
                                     Text(
-                                      clocked,
+                                      r.clocked,
                                       style: const TextStyle(
                                         color: TromblColors.textSub,
                                         fontSize: 14,

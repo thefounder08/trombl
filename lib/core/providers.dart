@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'ai/ai_usage_service.dart';
 import 'ai/llm_provider.dart';
 import 'ai/providers/proxy_llm_provider.dart';
 
@@ -34,6 +35,11 @@ final pendingPlanStatusProvider = StateProvider<String?>((_) => null);
 /// Concrete type (ProxyLlmProvider) is hidden from feature code.
 final llmProvider = Provider<LlmProvider>((ref) {
   return ProxyLlmProvider(ref.watch(supabaseProvider));
+});
+
+/// Fire-and-forget logger for every Gemini call.
+final aiUsageServiceProvider = Provider<AiUsageService>((ref) {
+  return AiUsageService(ref.watch(supabaseProvider));
 });
 
 /// Optional mood text typed by the user on the home screen.

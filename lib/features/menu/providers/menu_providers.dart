@@ -65,6 +65,7 @@ final menuRepositoryProvider = Provider<MenuRepository>((ref) {
   return MenuRepository(
     ref.watch(llmProvider),
     ref.watch(menuCacheServiceProvider),
+    ref.watch(aiUsageServiceProvider),
   );
 });
 

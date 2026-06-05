@@ -29,14 +29,14 @@ class ProxyLlmProvider implements LlmProvider {
         final text = _stripMarkdown(data['text'] as String);
         debugPrint('[LLM] text: "$text"');
         if (text.isEmpty || _isCopOut(text)) {
-          return const Failure("trom went quiet. try again?");
+          return const Failure('ai_copout');
         }
         return Success(text);
       }
       debugPrint('[LLM] unexpected shape: ${data.runtimeType}');
-      return const Failure("trom went quiet. try again?");
+      return const Failure('ai_unavailable');
     } catch (_) {
-      return const Failure("that didn't go through. try again?");
+      return const Failure('ai_error');
     }
   }
 

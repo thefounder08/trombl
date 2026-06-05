@@ -118,11 +118,18 @@ class DynamicMenu {
     }
   }
 
-  /// Static fallback — never shows blank content, never throws.
-  factory DynamicMenu.fromStatic(String vibe, String cacheKey) {
-    final bucket = TimeBucket.fromHour(DateTime.now().hour);
+  /// Layer 3 static fallback — time-aware, never throws, always shows content.
+  factory DynamicMenu.fromStatic(
+    String vibe,
+    String cacheKey, {
+    int? hour,
+    bool? isWeekend,
+  }) {
+    final h = hour ?? DateTime.now().hour;
+    final weekend = isWeekend ?? (DateTime.now().weekday >= 6);
+    final bucket = TimeBucket.fromHour(h);
     return DynamicMenu(
-      categories: TromblMenu.core(vibe),
+      categories: TromblMenu.coreForTime(vibe, h, weekend),
       newDrop: TromblMenu.newDrop(vibe),
       isAiGenerated: false,
       cacheKey: cacheKey,

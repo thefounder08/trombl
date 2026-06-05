@@ -88,16 +88,29 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     );
 
     AiPick pick;
+    final start = DateTime.now();
     final result = await ref.read(llmProvider).generate(
           LlmRequest(system: prompt.system, prompt: prompt.userPrompt),
         );
+    final ms = DateTime.now().difference(start).inMilliseconds;
+    final usage = ref.read(aiUsageServiceProvider);
 
     switch (result) {
       case Success(:final data):
         pick = _parseResponse(data, session.vibe, session.id);
+        usage.log(
+          endpoint: 'decide',
+          cacheHit: false,
+          fallbackLayer: 1,
+          promptChars: prompt.system.length + prompt.userPrompt.length,
+          responseChars: data.length,
+          durationMs: ms,
+        );
       case Failure():
         pick = PickFallback.get(session.vibe, now.hour, session.id,
             rerollCount: _rerollCount);
+        usage.log(
+            endpoint: 'decide', cacheHit: false, fallbackLayer: 3, durationMs: ms);
     }
 
     pick = pick.copyWith(
