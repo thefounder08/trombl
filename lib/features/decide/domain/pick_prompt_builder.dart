@@ -27,6 +27,7 @@ abstract final class PickPromptBuilder {
   }) {
     final dayType = HumanRhythmEngine.dayTypeFor(dayOfWeek);
     final period = HumanRhythmEngine.periodFor(hour, dayType);
+    final rhythm = HumanRhythmEngine.derive(period);
     final timeCandidates = HumanRhythmEngine.candidatesFor(period, vibe);
 
     // Mood candidates prepended — so the AI sees them before time candidates.
@@ -55,12 +56,14 @@ abstract final class PickPromptBuilder {
       recentPicks: ctx.recentPicks,
       moodText: moodText,
       weatherCondition: weatherCondition,
+      rhythmDirective: rhythm.directive,
     );
 
-    // Log the full prompt so mood injection can be verified.
+    // Log the full prompt so mood injection and time rules can be verified.
     if (moodText != null && moodText.isNotEmpty) {
       debugPrint('[PickPrompt] MOOD OVERRIDE: "$moodText" → injected ${moodCandidates.length} mood candidates: $moodCandidates');
     }
+    debugPrint('[PickPrompt] period=${period.name} directive injected: ${rhythm.directive.split('\n').first}');
     debugPrint('[PickPrompt] full prompt sent to Gemini:\n$userPrompt');
 
     return (system: _system, userPrompt: userPrompt);
@@ -113,6 +116,10 @@ abstract final class PickPromptBuilder {
     // Sad / low mood
     if (_any(m, ['sad', 'down', 'low', 'unhappy', 'miserable', 'depressed'])) {
       out.addAll(['text someone you trust', 'comfort show or movie', 'get outside for 10']);
+    }
+    // Quiet / calm / need space — covers "want quiet time", "calm down", "need peace"
+    if (_any(m, ['quiet', 'calm', 'peace', 'peaceful', 'silence', 'decompress', 'recharge', 'space', 'slow', 'chill', 'wind down', 'wind-down', 'relax'])) {
+      out.addAll(['screen-free 20 min', 'ambient sounds or silence', 'lie down no phone', 'step away from everything']);
     }
 
     return out;
@@ -174,13 +181,14 @@ tags:
     required List<AiPick> recentPicks,
     String? moodText,
     String? weatherCondition,
+    required String rhythmDirective,
   }) {
     final buf = StringBuffer();
 
     // ── MOOD — absolute first block, strongest signal ─────────────────────────
     if (moodText != null && moodText.isNotEmpty) {
-      buf.writeln('USER SAID: "$moodText"');
-      buf.writeln('This is the most important signal. Respond to THIS specifically, not to a general vibe.');
+      buf.writeln('The user said: "$moodText". Respond to THIS specifically.');
+      buf.writeln('This is the most important signal — it overrides time rules.');
       if (hasMoodCandidates) {
         buf.writeln('Mood-matched candidates appear first in [CANDIDATES]. Prefer them.');
       }
@@ -189,6 +197,7 @@ tags:
 
     buf.writeln('[TIME]');
     buf.writeln('${dayOfWeek.toUpperCase()}, ${_hourLabel(hour)} — ${_dayType(dayOfWeek)}');
+    buf.writeln(rhythmDirective);
     buf.writeln();
 
     buf.writeln('[CANDIDATES]');

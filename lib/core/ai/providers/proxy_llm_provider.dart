@@ -35,7 +35,8 @@ class ProxyLlmProvider implements LlmProvider {
       }
       debugPrint('[LLM] unexpected shape: ${data.runtimeType}');
       return const Failure('ai_unavailable');
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[LLM] exception invoking llm-proxy: $e');
       return const Failure('ai_error');
     }
   }

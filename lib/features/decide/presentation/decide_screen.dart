@@ -106,12 +106,15 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
           responseChars: data.length,
           durationMs: ms,
         );
-      case Failure():
+      case Failure(:final error):
+        debugPrint('[Decide] LLM Failure($error) — using fallback (rerollCount=$_rerollCount)');
         pick = PickFallback.get(session.vibe, now.hour, session.id,
             rerollCount: _rerollCount);
         usage.log(
             endpoint: 'decide', cacheHit: false, fallbackLayer: 3, durationMs: ms);
     }
+
+    debugPrint('[Decide] pick saved: "${pick.pickText}" | reason: "${pick.reasonText}" | tag: ${pick.tag}');
 
     pick = pick.copyWith(
       moodText: mood,
@@ -211,21 +214,30 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
   // ── LLM response parsing ─────────────────────────────────────────────────────
 
   AiPick _parseResponse(String raw, String vibe, String sessionId) {
+    debugPrint('[Decide] parseResponse raw (${raw.length} chars): "${raw.length > 200 ? '${raw.substring(0, 200)}…' : raw}"');
     try {
       final start = raw.indexOf('{');
-      final end = raw.lastIndexOf('}');
-      if (start == -1 || end <= start) throw const FormatException('no JSON');
-      final map =
-          jsonDecode(raw.substring(start, end + 1)) as Map<String, dynamic>;
+      if (start == -1) throw const FormatException('no opening brace');
+
+      // Use stack-based matching so nested braces inside string values don't
+      // fool us — lastIndexOf('}') breaks when the model adds commentary after
+      // the JSON object.
+      final end = _matchingBrace(raw, start);
+      if (end == null) throw const FormatException('no matching closing brace');
+
+      final jsonSlice = raw.substring(start, end + 1);
+      debugPrint('[Decide] parseResponse JSON slice: "$jsonSlice"');
+
+      final map = jsonDecode(jsonSlice) as Map<String, dynamic>;
 
       final pickText = (map['pick'] as String? ?? '').trim();
       final reasonText = (map['reason'] as String? ?? '').trim();
       final tag = _normalizeTag(map['tag'] as String? ?? 'solo');
 
-      if (pickText.isEmpty || reasonText.isEmpty) {
-        throw const FormatException('empty fields');
-      }
+      if (pickText.isEmpty) throw const FormatException('pick is empty');
+      if (reasonText.isEmpty) throw const FormatException('reason is empty');
 
+      debugPrint('[Decide] AI response used: "$pickText"');
       return AiPick(
         id: '',
         userId: '',
@@ -235,10 +247,43 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
         reasonText: reasonText,
         tag: tag,
       );
-    } catch (_) {
-      return PickFallback.get(vibe, DateTime.now().hour, sessionId,
+    } catch (e) {
+      debugPrint('[Decide] parseResponse FAILED: $e — using fallback (rerollCount=$_rerollCount)');
+      final fb = PickFallback.get(vibe, DateTime.now().hour, sessionId,
           rerollCount: _rerollCount);
+      debugPrint('[Decide] fallback fired: "${fb.pickText}"');
+      return fb;
     }
+  }
+
+  /// Stack-based brace matcher — returns the index of the closing brace that
+  /// pairs with the opening brace at [openPos], or null if malformed.
+  static int? _matchingBrace(String s, int openPos) {
+    int depth = 0;
+    bool inStr = false;
+    bool esc = false;
+    for (int i = openPos; i < s.length; i++) {
+      final c = s[i];
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (c == '\\' && inStr) {
+        esc = true;
+        continue;
+      }
+      if (c == '"') {
+        inStr = !inStr;
+        continue;
+      }
+      if (inStr) { continue; }
+      if (c == '{') {
+        depth++;
+      } else if (c == '}') {
+        if (--depth == 0) return i;
+      }
+    }
+    return null;
   }
 
   static String _normalizeTag(String raw) {
