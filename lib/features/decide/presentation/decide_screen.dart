@@ -182,11 +182,9 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
 
   Future<void> _requestWithMood(String mood) async {
     ref.read(moodInputProvider.notifier).state = mood;
-    // Reset counters so the new anchored pick feels fresh.
-    setState(() {
-      _rerollCount = 0;
-      _inSessionRejects.clear();
-    });
+    // Reset roll counter but keep rejects — model must not repeat what was
+    // already rejected even with a mood-anchored re-request.
+    setState(() => _rerollCount = 0);
     await _requestPick();
   }
 

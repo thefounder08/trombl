@@ -103,23 +103,39 @@ abstract final class PickPromptBuilder {
     }
     // Anxious / stressed
     if (_any(m, ['anxious', 'anxiety', 'stressed', 'stress', 'overwhelmed', 'nervous', 'worried'])) {
-      out.addAll(['step outside for 5', 'breathing exercise', 'take a proper break from everything']);
+      out.addAll(['breathe for 5 mins and actually reset', 'body scan lying flat', 'put everything down for 15 mins', 'write out what\'s in ur head then close it']);
     }
-    // Lonely / social
-    if (_any(m, ['lonely', 'alone', 'miss', 'want company', 'need someone'])) {
-      out.addAll(['text someone you miss', 'voice note a friend', 'make plans with someone this week']);
+    // Lonely / need company / social
+    if (_any(m, ['lonely', 'alone', 'miss', 'want company', 'need someone', 'need company', 'company'])) {
+      out.addAll(['text someone you miss', 'voice note a friend right now', 'make actual plans with someone this week', 'call don\'t text']);
+    }
+    // Want to go out / social / explore
+    if (_any(m, ['go out', 'social', 'out tonight', 'people', 'see people', 'want to explore', 'explore', 'adventure', 'nightlife', 'bar', 'drinks', 'plans'])) {
+      out.addAll(['text the group chat and make something happen tonight', 'find where people are tonight and just go', 'pick a direction and walk until something looks interesting', 'book something — dinner, event, whatever']);
+    }
+    // Need a break / pause
+    if (_any(m, ['break', 'need a break', 'pause', 'step back', 'breather', 'rest', 'too much'])) {
+      out.addAll(['do nothing for 20 mins, no phone', 'change ur scenery even if it\'s just another room', 'lie down with eyes closed — not sleep, just off', 'make a drink and sit with it, nothing else']);
+    }
+    // Low energy / sluggish
+    if (_any(m, ['low energy', 'sluggish', 'unmotivated', 'no motivation', 'blah', 'meh'])) {
+      out.addAll(['do one tiny thing to feel less stuck', 'get up and change location', 'put something energising on and ride it', 'eat something real if u haven\'t']);
+    }
+    // Just scrolling / mindless / procrastinating
+    if (_any(m, ['scrolling', 'scroll', 'procrastinating', 'procrastinate', 'mindless', 'wasting time', 'doom'])) {
+      out.addAll(['close all tabs and pick ONE thing', 'set a 10-min timer — do the thing u\'ve been avoiding', 'phone down, pick something physical', 'open something u actually want to do, not just default to']);
     }
     // Movement / exercise
-    if (_any(m, ['move', 'exercise', 'workout', 'gym', 'run', 'walk', 'active', 'fitness'])) {
-      out.addAll(['go for a quick walk', '10-min home workout', 'get outside and move']);
+    if (_any(m, ['move', 'exercise', 'workout', 'gym', 'run', 'walk', 'active', 'fitness', 'need to move'])) {
+      out.addAll(['10-min home workout no equipment', 'walk somewhere with a destination', 'stretch properly for once', 'do something physical, even if it\'s just stairs']);
     }
     // Sad / low mood
-    if (_any(m, ['sad', 'down', 'low', 'unhappy', 'miserable', 'depressed'])) {
-      out.addAll(['text someone you trust', 'comfort show or movie', 'get outside for 10']);
+    if (_any(m, ['sad', 'unhappy', 'miserable', 'depressed'])) {
+      out.addAll(['text someone you actually trust', 'comfort show fully committed', 'short walk, no destination, no music', 'let yourself feel it — no forcing productive']);
     }
     // Quiet / calm / need space — covers "want quiet time", "calm down", "need peace"
-    if (_any(m, ['quiet', 'calm', 'peace', 'peaceful', 'silence', 'decompress', 'recharge', 'space', 'slow', 'chill', 'wind down', 'wind-down', 'relax'])) {
-      out.addAll(['screen-free 20 min', 'ambient sounds or silence', 'lie down no phone', 'step away from everything']);
+    if (_any(m, ['quiet', 'calm', 'peace', 'peaceful', 'silence', 'decompress', 'recharge', 'space', 'slow', 'chill', 'wind down', 'wind-down', 'relax', 'need to chill'])) {
+      out.addAll(['screen-free for 20, actually do it', 'ambient sounds and lie down', 'close everything and just be somewhere quiet', 'slow walk somewhere calm']);
     }
 
     return out;
@@ -249,8 +265,9 @@ tags:
     }
 
     if (inSessionRejects.isNotEmpty) {
-      buf.writeln('[REJECTED THIS SESSION — pick something genuinely different]');
-      buf.writeln(inSessionRejects.take(3).join(', '));
+      buf.writeln('[HARD REJECT — do NOT suggest anything similar to these]');
+      buf.writeln(inSessionRejects.take(5).join(', '));
+      buf.writeln('user already said no to all of these. different category entirely.');
       buf.writeln();
     }
 
