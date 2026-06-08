@@ -58,11 +58,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final accent = TromblColors.accentFor(vibe);
     final greetingAsync = ref.watch(homeGreetingProvider);
     final dynamicMenu = ref.watch(dynamicMenuProvider);
+    final currentMenuKey = ref.watch(menuCacheKeyProvider);
     final myPlans = ref.watch(myPlansProvider);
     final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
 
-    // AI categories with static fallback while loading.
-    final categories = dynamicMenu.valueOrNull?.categories ?? TromblMenu.core(vibe);
+    // Only use cached menu if it's for the current vibe+key. dynamicMenuProvider
+    // retains the previous AsyncData while the new vibe's menu loads, so without
+    // this check the UI would show the old vibe's categories for 1-2 seconds.
+    final loadedMenu = dynamicMenu.valueOrNull;
+    final categories = (loadedMenu != null && loadedMenu.cacheKey == currentMenuKey)
+        ? loadedMenu.categories
+        : TromblMenu.core(vibe);
 
     return Scaffold(
       backgroundColor: TromblColors.bg,
