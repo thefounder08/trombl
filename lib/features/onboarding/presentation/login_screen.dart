@@ -8,6 +8,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/config/feature_flags.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../vibe/providers/session_providers.dart';
@@ -19,11 +20,33 @@ class LoginScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final email = useTextEditingController();
-    final otp = useTextEditingController();
     final loading = useState(false);
+    // sent = true only in the magic-link path after the link has been sent.
+    // In the auto-sign-in path this stays false — the user never sees a waiting state.
     final sent = useState(false);
     final sentEmail = useState('');
-    final resendCooldown = useState(0); // seconds remaining before resend allowed
+    final authSub = useRef<StreamSubscription<AuthState>?>(null);
+
+    useEffect(() {
+      return () => authSub.value?.cancel();
+    }, const []);
+
+    Future<void> routeAfterSignIn() async {
+      if (!context.mounted) return;
+      HapticFeedback.heavyImpact();
+      final profile = await ref.read(sessionRepositoryProvider).getProfile();
+      final pendingToken = ref.read(pendingPlanTokenProvider);
+      if (!context.mounted) return;
+      if (profile?.displayName == null) {
+        context.go('/setup');
+      } else if (!profile!.onboardingCompleted) {
+        context.go('/onboarding');
+      } else if (pendingToken != null) {
+        ref.read(pendingPlanTokenProvider.notifier).state = null;
+        context.go('/p/$pendingToken');
+      }
+      // else: _AuthRefresh picks up the auth change and redirects to /vibe
+    }
 
     Future<void> sendOtp() async {
       final raw = email.text.trim().toLowerCase();
@@ -36,23 +59,53 @@ class LoginScreen extends HookConsumerWidget {
       }
       loading.value = true;
       try {
-        await ref.read(supabaseProvider).auth.signInWithOtp(
-              email: raw,
-              // No emailRedirectTo — forces Supabase to send the 6-digit OTP
-              // code only. Magic-link deep-linking is handled by the app router
-              // when the user enters the code manually.
-            );
-        sentEmail.value = raw;
-        sent.value = true;
-        // Start 30s resend cooldown
-        resendCooldown.value = 30;
-        Timer.periodic(const Duration(seconds: 1), (t) {
-          if (resendCooldown.value <= 0) {
-            t.cancel();
-          } else {
-            resendCooldown.value--;
-          }
-        });
+        if (FeatureFlags.emailConfirmationEnabled) {
+          // MAGIC LINK PATH — email confirmation ON
+          // Send magic link; show "check ur email" waiting state.
+          // onAuthStateChange fires when the user clicks the link.
+          await ref.read(supabaseProvider).auth.signInWithOtp(
+            email: raw,
+            emailRedirectTo: 'trombl://auth/callback',
+          );
+          sentEmail.value = raw;
+          sent.value = true;
+          loading.value = false;
+          // Subscribe so we catch the signedIn event when the link is clicked.
+          authSub.value?.cancel();
+          authSub.value = ref
+              .read(supabaseProvider)
+              .auth
+              .onAuthStateChange
+              .listen((state) async {
+            if (state.event == AuthChangeEvent.signedIn) {
+              authSub.value?.cancel();
+              authSub.value = null;
+              await routeAfterSignIn();
+            }
+          });
+        } else {
+          // AUTO SIGN-IN PATH — email confirmation OFF (current Supabase setting)
+          // Supabase fires signedIn immediately — no OTP code entry needed.
+          await ref.read(supabaseProvider).auth.signInWithOtp(
+            email: raw,
+            shouldCreateUser: true,
+          );
+          sentEmail.value = raw;
+          // Keep loading = true ("getting u in…") until onAuthStateChange fires.
+          authSub.value?.cancel();
+          authSub.value = ref
+              .read(supabaseProvider)
+              .auth
+              .onAuthStateChange
+              .listen((state) async {
+            if (state.event == AuthChangeEvent.signedIn) {
+              authSub.value?.cancel();
+              authSub.value = null;
+              loading.value = false;
+              await routeAfterSignIn();
+            }
+          });
+        }
       } catch (e) {
         debugPrint('sendOtp error: $e');
         final msg = e is AuthException ? e.message : e.toString();
@@ -61,50 +114,6 @@ class LoginScreen extends HookConsumerWidget {
             SnackBar(content: Text(msg), duration: const Duration(seconds: 6)),
           );
         }
-      } finally {
-        loading.value = false;
-      }
-    }
-
-    Future<void> verifyOtp() async {
-      final code = otp.text.trim();
-      if (code.length < 8) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("enter the full 8-digit code from ur email.")),
-        );
-        return;
-      }
-      loading.value = true;
-      try {
-        await ref.read(supabaseProvider).auth.verifyOTP(
-              email: sentEmail.value,
-              token: code,
-              type: OtpType.email,
-            );
-        HapticFeedback.heavyImpact();
-        if (context.mounted) {
-          final profile = await ref.read(sessionRepositoryProvider).getProfile();
-          final pendingToken = ref.read(pendingPlanTokenProvider);
-          if (!context.mounted) return;
-          if (profile?.displayName == null) {
-            context.go('/setup');
-          } else if (!profile!.onboardingCompleted) {
-            context.go('/onboarding');
-          } else if (pendingToken != null) {
-            ref.read(pendingPlanTokenProvider.notifier).state = null;
-            context.go('/p/$pendingToken');
-          }
-          // else: router's authStateProvider listener handles redirect to /vibe
-        }
-      } catch (e) {
-        debugPrint('verifyOtp error: $e');
-        final msg = e is AuthException ? e.message : e.toString();
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg), duration: const Duration(seconds: 6)),
-          );
-        }
-      } finally {
         loading.value = false;
       }
     }
@@ -139,8 +148,10 @@ class LoginScreen extends HookConsumerWidget {
               const SizedBox(height: 10),
               Text(
                 sent.value
-                    ? 'enter the 8-digit code from ur email to ${sentEmail.value}\n(ignore any "verify" link — just type the code)'
-                    : 'drop ur email — trom sends a code, no passwords.',
+                    ? 'check ur email. tap the link and ur in.'
+                    : FeatureFlags.emailConfirmationEnabled
+                        ? 'drop ur email — trom sends a magic link. no password needed.'
+                        : 'drop ur email. trom\'s got the rest.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13.5, color: TromblColors.textSub, height: 1.5),
               ),
@@ -183,7 +194,21 @@ class LoginScreen extends HookConsumerWidget {
                 ),
                 const SizedBox(height: 20),
               ],
-              if (!sent.value) ...[
+              if (sent.value) ...[
+                // Magic-link waiting state — no email field, just a reset option.
+                GestureDetector(
+                  onTap: loading.value ? null : () {
+                    authSub.value?.cancel();
+                    authSub.value = null;
+                    sent.value = false;
+                  },
+                  child: const Text(
+                    'wrong email? start over',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
+                  ),
+                ),
+              ] else ...[
                 TextField(
                   controller: email,
                   keyboardType: TextInputType.emailAddress,
@@ -202,77 +227,10 @@ class LoginScreen extends HookConsumerWidget {
                 ),
                 const SizedBox(height: 14),
                 _PrimaryButton(
-                  label: loading.value ? 'sending…' : "let's go →",
+                  label: loading.value
+                      ? (FeatureFlags.emailConfirmationEnabled ? 'sending…' : 'getting u in…')
+                      : "let's go →",
                   onTap: loading.value ? null : sendOtp,
-                ),
-              ] else ...[
-                TextField(
-                  controller: otp,
-                  keyboardType: TextInputType.visiblePassword,
-                  textAlign: TextAlign.center,
-                  maxLength: 8,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  style: const TextStyle(
-                    color: TromblColors.text,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 26,
-                    letterSpacing: 8,
-                  ),
-                  decoration: InputDecoration(
-                    counterText: '',
-                    hintText: '········',
-                    hintStyle: const TextStyle(color: TromblColors.textMuted, letterSpacing: 8),
-                    filled: true,
-                    fillColor: TromblColors.card,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  onChanged: (v) {
-                    if (v.length == 8 && !loading.value) verifyOtp();
-                  },
-                ),
-                const SizedBox(height: 14),
-                _PrimaryButton(
-                  label: loading.value ? 'verifying…' : "verify →",
-                  onTap: loading.value ? null : verifyOtp,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: loading.value ? null : () {
-                        sent.value = false;
-                        otp.clear();
-                      },
-                      child: const Text(
-                        'wrong email?',
-                        style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
-                      ),
-                    ),
-                    const Text(' · ',
-                        style: TextStyle(color: TromblColors.textMuted, fontSize: 13)),
-                    GestureDetector(
-                      onTap: (loading.value || resendCooldown.value > 0)
-                          ? null
-                          : sendOtp,
-                      child: Text(
-                        resendCooldown.value > 0
-                            ? 'resend in ${resendCooldown.value}s'
-                            : 'resend code',
-                        style: TextStyle(
-                          color: resendCooldown.value > 0
-                              ? TromblColors.textMuted
-                              : TromblColors.jomo,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ],
