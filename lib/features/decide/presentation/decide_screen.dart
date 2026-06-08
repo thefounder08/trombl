@@ -114,14 +114,14 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               if (_containsBanned(retryPick.pickText)) {
                 debugPrint('[Decide] retry also generic: "${retryPick.pickText}" — using fallback');
                 pick = PickFallback.get(session.vibe, now.hour, session.id,
-                    rerollCount: _rerollCount);
+                    rerollCount: _rerollCount, exclude: List.unmodifiable(_inSessionRejects));
               } else {
                 pick = retryPick;
               }
             case Failure(:final error):
               debugPrint('[Decide] retry failed($error) — using fallback');
               pick = PickFallback.get(session.vibe, now.hour, session.id,
-                  rerollCount: _rerollCount);
+                  rerollCount: _rerollCount, exclude: List.unmodifiable(_inSessionRejects));
           }
         }
         usage.log(
@@ -135,7 +135,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       case Failure(:final error):
         debugPrint('[Decide] LLM Failure($error) — using fallback (rerollCount=$_rerollCount)');
         pick = PickFallback.get(session.vibe, now.hour, session.id,
-            rerollCount: _rerollCount);
+            rerollCount: _rerollCount, exclude: List.unmodifiable(_inSessionRejects));
         usage.log(
             endpoint: 'decide', cacheHit: false, fallbackLayer: 3, durationMs: ms);
     }
@@ -274,7 +274,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     } catch (e) {
       debugPrint('[Decide] parseResponse FAILED: $e — using fallback (rerollCount=$_rerollCount)');
       final fb = PickFallback.get(vibe, DateTime.now().hour, sessionId,
-          rerollCount: _rerollCount);
+          rerollCount: _rerollCount, exclude: List.unmodifiable(_inSessionRejects));
       debugPrint('[Decide] fallback fired: "${fb.pickText}"');
       return fb;
     }
@@ -878,12 +878,12 @@ class _AlternativesSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Generate fallback options, skipping the one already shown.
+    // Generate fallback options, excluding the current pick.
     final options = <AiPick>[];
     for (int i = 0; options.length < 4 && i < 20; i++) {
-      final p = PickFallback.get(vibe, hour, sessionId, rerollCount: i);
-      if (p.pickText != currentPickText &&
-          !options.any((o) => o.pickText == p.pickText)) {
+      final p = PickFallback.get(vibe, hour, sessionId,
+          rerollCount: i, exclude: [currentPickText]);
+      if (!options.any((o) => o.pickText == p.pickText)) {
         options.add(p);
       }
     }
@@ -1062,11 +1062,31 @@ class _AskState extends State<_Ask> {
 
   void _submit() {
     if (!_canSubmit) return;
-    final answer =
-        _showInput ? _ctrl.text.trim() : _selected!;
+    // Typed input passes through raw; chip labels expand to richer mood text
+    // so the AI gets enough signal to produce a specific, relevant pick.
+    final mood = _showInput ? _ctrl.text.trim() : _expandChip(_selected!);
     HapticFeedback.mediumImpact();
-    widget.onAnswer(answer);
+    widget.onAnswer(mood);
   }
+
+  static String _expandChip(String chip) => switch (chip) {
+        'social'               => 'want to be social, need to make real plans with people',
+        'hungry'               => 'hungry, need food right now',
+        'tired but restless'   => "tired but can't switch off, wired and restless",
+        'need to chill'        => 'need to decompress, something low effort and calm',
+        'bored'                => 'bored, need something genuinely engaging',
+        'need a break'         => 'need a break — step back and reset properly',
+        'want to go out'       => 'want to leave the house and do something',
+        "can't sleep"          => "can't sleep, restless, need wind-down",
+        'restless'             => "restless, can't settle, need something",
+        'want something quiet' => 'want quiet time, need calm and low stimulation',
+        'just winding down'    => 'winding down for the night, want something slow',
+        'want something calm'  => 'want something calm and low effort',
+        'need company'         => 'lonely, need company, want to connect with someone',
+        'just scrolling'       => 'mindlessly scrolling, want something more intentional',
+        'low energy'           => 'low energy, unmotivated, need a gentle nudge',
+        _                      => chip, // typed custom input passes through
+      };
 
   @override
   Widget build(BuildContext context) {
