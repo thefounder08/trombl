@@ -98,6 +98,32 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     switch (result) {
       case Success(:final data):
         pick = _parseResponse(data, session.vibe, session.id);
+        // Banned-phrase guard: retry once with a specificity note.
+        if (_containsBanned(pick.pickText)) {
+          debugPrint('[Decide] banned phrase in "${pick.pickText}" — retrying');
+          final retryResult = await ref.read(llmProvider).generate(
+            LlmRequest(
+              system: prompt.system,
+              prompt:
+                  '${prompt.userPrompt}\n\nnote: the previous pick was too generic — give something more specific and concrete.',
+            ),
+          );
+          switch (retryResult) {
+            case Success(:final data):
+              final retryPick = _parseResponse(data, session.vibe, session.id);
+              if (_containsBanned(retryPick.pickText)) {
+                debugPrint('[Decide] retry also generic: "${retryPick.pickText}" — using fallback');
+                pick = PickFallback.get(session.vibe, now.hour, session.id,
+                    rerollCount: _rerollCount);
+              } else {
+                pick = retryPick;
+              }
+            case Failure(:final error):
+              debugPrint('[Decide] retry failed($error) — using fallback');
+              pick = PickFallback.get(session.vibe, now.hour, session.id,
+                  rerollCount: _rerollCount);
+          }
+        }
         usage.log(
           endpoint: 'decide',
           cacheHit: false,
@@ -186,7 +212,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
 
     unawaited(ref.read(decideRepositoryProvider).markAccepted(pick.id));
 
-    if (pick.tag == 'solo') {
+    if (pick.tag == 'rest' || pick.tag == 'focus') {
       if (mounted) setState(() => _phase = _Phase.done);
       return;
     }
@@ -230,12 +256,12 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
 
       final map = jsonDecode(jsonSlice) as Map<String, dynamic>;
 
-      final pickText = (map['pick'] as String? ?? '').trim();
-      final reasonText = (map['reason'] as String? ?? '').trim();
-      final tag = _normalizeTag(map['tag'] as String? ?? 'solo');
+      final pickText = (map['pick_text'] as String? ?? '').trim();
+      final reasonText = (map['reason_text'] as String? ?? '').trim();
+      final tag = _normalizeTag(map['tag'] as String? ?? 'focus');
 
-      if (pickText.isEmpty) throw const FormatException('pick is empty');
-      if (reasonText.isEmpty) throw const FormatException('reason is empty');
+      if (pickText.isEmpty) throw const FormatException('pick_text is empty');
+      if (reasonText.isEmpty) throw const FormatException('reason_text is empty');
 
       debugPrint('[Decide] AI response used: "$pickText"');
       return AiPick(
@@ -254,6 +280,22 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       debugPrint('[Decide] fallback fired: "${fb.pickText}"');
       return fb;
     }
+  }
+
+  static bool _containsBanned(String pickText) {
+    final lower = pickText.toLowerCase();
+    const phrases = [
+      'get outside for 20 minutes',
+      'text someone you owe a reply',
+      'find a coffee spot',
+      'morning energy is free',
+      'afternoon slump',
+      'step outside for',
+    ];
+    if (phrases.any((b) => lower.contains(b))) return true;
+    // "go for a walk" is banned when bare (< 30 chars); qualified versions
+    // like "go for a walk but make it interesting" are fine.
+    return lower.length < 30 && lower.contains('go for a walk');
   }
 
   /// Stack-based brace matcher — returns the index of the closing brace that
@@ -287,9 +329,9 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
   }
 
   static String _normalizeTag(String raw) {
-    const valid = {'discover', 'squad', 'order in', 'rest', 'content', 'solo'};
+    const valid = {'rest', 'social', 'food', 'explore', 'content', 'focus'};
     final lower = raw.toLowerCase().trim();
-    return valid.contains(lower) ? lower : 'solo';
+    return valid.contains(lower) ? lower : 'focus';
   }
 
   // ── Build ────────────────────────────────────────────────────────────────────
@@ -668,12 +710,12 @@ class _Pick extends StatelessWidget {
   }
 
   String get _doItLabel => switch (pick.tag) {
-        'squad'    => 'trom, send it →',
-        'order in' => 'trom, order →',
-        'rest'     => 'trom, lock in →',
-        'discover' => 'trom, find it →',
-        'content'  => 'trom, post it →',
-        _          => 'noted. go. →',
+        'social'  => 'trom, send it →',
+        'food'    => 'trom, order →',
+        'rest'    => 'trom, lock in →',
+        'explore' => 'trom, find it →',
+        'content' => 'trom, post it →',
+        _         => 'noted. go. →',
       };
 
   @override
