@@ -249,45 +249,81 @@ class ProfileScreen extends ConsumerWidget {
                     ref.watch(_currentProfileProvider).maybeWhen(
                       data: (profile) {
                         final chips = <String>[
-                          if (profile?.archetype != null) profile!.archetype!,
-                          if (profile?.scheduleType != null) profile!.scheduleType!,
-                          if (profile?.weekendPref != null) profile!.weekendPref!,
-                          ...?profile?.wantsMore.map((w) => 'wants $w'),
-                          ...?profile?.goals,
-                          if (profile?.lifestyle != null) profile!.lifestyle!,
+                          if (profile?.archetype?.isNotEmpty == true) profile!.archetype!,
+                          if (profile?.scheduleType?.isNotEmpty == true) profile!.scheduleType!,
+                          if (profile?.weekendPref?.isNotEmpty == true) profile!.weekendPref!,
+                          ...?profile?.wantsMore.where((w) => w.isNotEmpty).map((w) => 'wants $w'),
+                          ...?profile?.goals.where((g) => g.isNotEmpty),
+                          if (profile?.lifestyle?.isNotEmpty == true) profile!.lifestyle!,
                         ];
-                        if (chips.isEmpty) return const SizedBox.shrink();
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('ABOUT YOU',
-                                style: TextStyle(
-                                    color: TromblColors.textMuted,
-                                    fontSize: 10,
-                                    letterSpacing: 2,
-                                    fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: chips.map((c) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: TromblColors.card,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                      color: TromblColors.jomo.withValues(alpha: 0.18)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('ABOUT YOU',
+                                    style: TextStyle(
+                                        color: TromblColors.textMuted,
+                                        fontSize: 10,
+                                        letterSpacing: 2,
+                                        fontWeight: FontWeight.w700)),
+                                GestureDetector(
+                                  onTap: () => context.push('/onboarding'),
+                                  child: Text(
+                                    chips.isEmpty ? 'set up →' : 'retake →',
+                                    style: const TextStyle(
+                                        color: TromblColors.textMuted,
+                                        fontSize: 12),
+                                  ),
                                 ),
-                                child: Text(
-                                  c,
-                                  style: const TextStyle(
-                                      color: TromblColors.jomo,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600),
-                                ),
-                              )).toList(),
+                              ],
                             ),
+                            const SizedBox(height: 10),
+                            if (chips.isEmpty)
+                              GestureDetector(
+                                onTap: () => context.push('/onboarding'),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 13),
+                                  decoration: BoxDecoration(
+                                    color: TromblColors.card,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: TromblColors.jomo.withValues(alpha: 0.18)),
+                                  ),
+                                  child: const Text(
+                                    'answer a few q\'s so trom gets u better →',
+                                    style: TextStyle(
+                                        color: TromblColors.textMuted,
+                                        fontSize: 13,
+                                        fontFamily: TromblText.sans),
+                                  ),
+                                ),
+                              )
+                            else
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: chips.map((c) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: TromblColors.card,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                        color: TromblColors.jomo.withValues(alpha: 0.18)),
+                                  ),
+                                  child: Text(
+                                    c,
+                                    style: const TextStyle(
+                                        color: TromblColors.jomo,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                )).toList(),
+                              ),
                             const SizedBox(height: 28),
                           ],
                         );
