@@ -354,7 +354,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               vibe: session.vibe,
               accent: accent,
               onPickForMe: _requestPick,
-              onBrowse: () => context.go('/menu'),
+              onBrowse: () => context.go('/home'),
               onBack: () => context.go('/home'),
             ),
           _Phase.loading => _Loading(vibe: session.vibe),
@@ -397,7 +397,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
                     },
                     onBrowse: () {
                       Navigator.of(context).pop();
-                      router.go('/menu');
+                      router.go('/home');
                     },
                   ),
                 );

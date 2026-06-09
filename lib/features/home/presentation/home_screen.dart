@@ -160,28 +160,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // ── Zone 2b: Decide section — secondary, grouped ──────────────────
               _DecideSection(moodCtrl: _moodCtrl, onDecide: _decide),
 
-              const SizedBox(height: 10),
-
-              // Browse — tertiary, text link only
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  context.go('/menu');
-                },
-                child: const SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    'or i\'ll just browse →',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: TromblColors.textMuted,
-                      fontSize: 12,
-                      fontFamily: TromblText.sans,
-                    ),
-                  ),
-                ),
-              ),
-
               const SizedBox(height: 40),
 
               // ── Zone 3: Plans + activity ─────────────────────────────────────
@@ -542,16 +520,19 @@ class _ActivityHandle extends StatelessWidget {
               style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(width: 8),
-            Text(
-              parts.join(' · '),
-              style: const TextStyle(
-                color: TromblColors.textSub,
-                fontSize: 13,
-                fontFamily: TromblText.sans,
-                fontWeight: FontWeight.w500,
+            Expanded(
+              child: Text(
+                parts.join(' · '),
+                style: const TextStyle(
+                  color: TromblColors.textSub,
+                  fontSize: 13,
+                  fontFamily: TromblText.sans,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             const Text(
               'open →',
               style: TextStyle(

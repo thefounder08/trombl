@@ -45,32 +45,34 @@ class MenuScreen extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => context.go('/home'),
-                        child: const Padding(
-                          padding: EdgeInsets.only(right: 12),
-                          child: Text('← home',
-                              style: TextStyle(
-                                  color: TromblColors.textMuted,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500)),
+                  Flexible(
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => context.go('/home'),
+                          child: const Padding(
+                            padding: EdgeInsets.only(right: 12),
+                            child: Text('← home',
+                                style: TextStyle(
+                                    color: TromblColors.textMuted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500)),
+                          ),
                         ),
-                      ),
-                      _VibeChip(
-                        vibe: vibe,
-                        accent: accent,
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          ref.read(activeSessionProvider.notifier).switchVibe();
-                        },
-                      ),
-                      if (pickCount > 0) ...[
-                        const SizedBox(width: 8),
-                        _PickBadge(count: pickCount, accent: accent),
+                        _VibeChip(
+                          vibe: vibe,
+                          accent: accent,
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            ref.read(activeSessionProvider.notifier).switchVibe();
+                          },
+                        ),
+                        if (pickCount > 0) ...[
+                          const SizedBox(width: 8),
+                          _PickBadge(count: pickCount, accent: accent),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                   Row(
                     children: [

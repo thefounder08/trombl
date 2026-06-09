@@ -337,7 +337,7 @@ class PlanDetailScreen extends ConsumerWidget {
                             GestureDetector(
                               onTap: () {
                                 HapticFeedback.mediumImpact();
-                                context.go('/menu');
+                                context.go('/home');
                               },
                               child: Container(
                                 width: double.infinity,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/trombl_theme.dart';
 import '../../../core/observability/analytics_service.dart';
@@ -153,7 +154,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
               GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  context.go('/menu');
+                  context.go('/home');
                 },
                 child: const Text(
                   '← back',
@@ -498,9 +499,78 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // SECONDARY — pick smth else
+                    // SECONDARY ROW — make it a plan · share this
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              context.push('/create-plan',
+                                  extra: CreatePlanArgs(
+                                      vibe: args.vibe,
+                                      optionLabel: args.optionLabel));
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: TromblColors.card,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                    color: accent.withValues(alpha: 0.25)),
+                              ),
+                              child: Text(
+                                '🔥 make it a plan',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  fontFamily: TromblText.sans,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              final vibeEmoji =
+                                  args.vibe == 'fomo' ? '⚡' : '🛌';
+                              Share.share(
+                                '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
+                                subject: 'trombl pick',
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: TromblColors.card,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: TromblColors.border),
+                              ),
+                              child: const Text(
+                                '🔗 share this',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: TromblColors.textSub,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  fontFamily: TromblText.sans,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // TERTIARY — pick smth else
                     GestureDetector(
-                      onTap: () => context.go('/menu'),
+                      onTap: () => context.go('/home'),
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 14),
