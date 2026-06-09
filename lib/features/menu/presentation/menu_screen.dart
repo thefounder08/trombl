@@ -9,9 +9,8 @@ import '../../../shared/models/models.dart';
 import '../../plans/providers/plan_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../checkin/providers/checkin_providers.dart';
-import '../domain/dynamic_menu.dart';
+import '../domain/menu_data.dart';
 import '../domain/menu_models.dart';
-import '../providers/menu_providers.dart';
 import 'widgets/options_sheet.dart';
 
 class MenuScreen extends ConsumerWidget {
@@ -32,14 +31,8 @@ class MenuScreen extends ConsumerWidget {
     final accent    = TromblColors.accentFor(vibe);
     final pickCount = ref.watch(todayPickCountProvider);
 
-    // Dynamic menu — falls back to static content while loading or on error,
-    // so the screen is NEVER blank and never shows a spinner.
-    final dynamicAsync = ref.watch(dynamicMenuProvider);
-    final menu = dynamicAsync.when(
-      loading: () => DynamicMenu.fromStatic(vibe, ''),
-      error:   (_, __) => DynamicMenu.fromStatic(vibe, ''),
-      data:    (m) => m,
-    );
+    final categories = TromblMenu.core(vibe);
+    final drop       = TromblMenu.newDrop(vibe);
 
     return Scaffold(
       body: SafeArea(
@@ -161,53 +154,7 @@ class MenuScreen extends ConsumerWidget {
               ),
             ),
 
-            // ── AI personalised badge ─────────────────────────────────────
-            if (menu.isAiGenerated)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: accent.withValues(alpha: 0.18)),
-                      ),
-                      child: Text(
-                        '✨ personalised for u',
-                        style: TextStyle(
-                          color: accent.withValues(alpha: 0.7),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
-                          fontFamily: TromblText.sans,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    // Subtle refresh tap target
-                    GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        ref.read(dynamicMenuProvider.notifier).refresh();
-                      },
-                      child: const Text(
-                        'refresh',
-                        style: TextStyle(
-                          color: TromblColors.textMuted,
-                          fontSize: 10,
-                          fontFamily: TromblText.sans,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              const SizedBox(height: 14),
+            const SizedBox(height: 14),
 
             // ── Category grid + NEW DROP ──────────────────────────────────
             Expanded(
@@ -221,13 +168,13 @@ class MenuScreen extends ConsumerWidget {
                     childAspectRatio: 1.05,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    children: menu.categories
+                    children: categories
                         .map((cat) =>
                             _CategoryCard(category: cat, vibe: vibe))
                         .toList(),
                   ),
                   const SizedBox(height: 10),
-                  _NewDropCard(category: menu.newDrop, vibe: vibe),
+                  _NewDropCard(category: drop, vibe: vibe),
                   const SizedBox(height: 24),
                   const _MyPlansSection(),
                 ],

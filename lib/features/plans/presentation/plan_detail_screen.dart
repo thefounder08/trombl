@@ -283,7 +283,7 @@ class PlanDetailScreen extends ConsumerWidget {
                           );
                         }
 
-                        // Joiner: WHO'S IN list fills remaining space
+                        // Joiner: WHO'S IN list + make-your-own CTA
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -333,6 +333,33 @@ class PlanDetailScreen extends ConsumerWidget {
                                       .toList(),
                                 ),
                               ),
+                            const SizedBox(height: 20),
+                            GestureDetector(
+                              onTap: () {
+                                HapticFeedback.mediumImpact();
+                                context.go('/menu');
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: TromblColors.card,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: accent.withValues(alpha: 0.25)),
+                                ),
+                                child: Text(
+                                  'make ur own plan →',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: accent,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    fontFamily: TromblText.sans,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
                           ],
                         );
                       },
