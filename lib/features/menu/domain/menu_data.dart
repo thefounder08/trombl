@@ -12,8 +12,8 @@ abstract final class TromblMenu {
       options: [
         MenuOption(id: 'f1a', label: 'rooftop or house party',              tag: 'squad'),
         MenuOption(id: 'f1b', label: 'live music or gig',                   tag: 'discover'),
-        MenuOption(id: 'f1c', label: 'bar hop with the crew',               tag: 'coming soon'),
-        MenuOption(id: 'f1d', label: 'club / dance floor',                  tag: 'coming soon'),
+        MenuOption(id: 'f1c', label: 'bar hop with the crew',               tag: 'squad'),
+        MenuOption(id: 'f1d', label: 'club / dance floor',                  tag: 'discover'),
       ],
     ),
     MenuCategory(
@@ -21,7 +21,7 @@ abstract final class TromblMenu {
       sub: "u've been saying 'soon' for too long.",
       options: [
         MenuOption(id: 'f2a', label: 'text the group chat rn',                   tag: 'squad'),
-        MenuOption(id: 'f2b', label: 'reach out to that one person',             tag: 'coming soon'),
+        MenuOption(id: 'f2b', label: 'reach out to that one person',             tag: 'squad'),
         MenuOption(id: 'f2c', label: "game night at someone's place",            tag: 'coming soon'),
         MenuOption(id: 'f2d', label: 'find something random and drag everyone',  tag: 'coming soon'),
       ],
@@ -30,10 +30,10 @@ abstract final class TromblMenu {
       id: 'f3', emoji: '💸', title: 'treat urself',
       sub: "u deserve it and u know it.",
       options: [
-        MenuOption(id: 'f3a', label: 'do something the future-you will remember', tag: 'coming soon'),
-        MenuOption(id: 'f3b', label: 'fancy dinner, main character era',          tag: 'order in'),
-        MenuOption(id: 'f3c', label: 'book a concert or show',                    tag: 'discover'),
-        MenuOption(id: 'f3d', label: 'get ur hair or nails done',                 tag: 'coming soon'),
+        MenuOption(id: 'f3a', label: 'fancy dinner, main character era',          tag: 'order in'),
+        MenuOption(id: 'f3b', label: 'book a concert or show',                    tag: 'discover'),
+        MenuOption(id: 'f3c', label: 'get ur hair or nails done',                 tag: 'discover'),
+        MenuOption(id: 'f3d', label: 'do something the future-you will remember', tag: 'coming soon'),
       ],
     ),
     MenuCategory(
@@ -41,8 +41,8 @@ abstract final class TromblMenu {
       sub: "the timeline needs u.",
       options: [
         MenuOption(id: 'f4a', label: 'instagram post or story',           tag: 'content'),
-        MenuOption(id: 'f4b', label: 'shoot a reel or vlog',              tag: 'coming soon'),
-        MenuOption(id: 'f4c', label: 'drop a new spotify playlist',       tag: 'coming soon'),
+        MenuOption(id: 'f4b', label: 'shoot a reel or vlog',              tag: 'content'),
+        MenuOption(id: 'f4c', label: 'drop a new spotify playlist',       tag: 'content'),
         MenuOption(id: 'f4d', label: 'post ur honest opinion on something', tag: 'coming soon'),
       ],
     ),
@@ -67,9 +67,9 @@ abstract final class TromblMenu {
       id: 'j1', emoji: '🛌', title: 'fully rot today',
       sub: "no guilt. ur recharging. this is valid.",
       options: [
-        MenuOption(id: 'j1a', label: 'binge netflix or youtube',         tag: 'coming soon'),
-        MenuOption(id: 'j1b', label: 'rewatch ur comfort show',          tag: 'coming soon'),
-        MenuOption(id: 'j1c', label: 'sleep in or nap aggressively',     tag: 'coming soon'),
+        MenuOption(id: 'j1a', label: 'binge netflix or youtube',         tag: 'rest'),
+        MenuOption(id: 'j1b', label: 'rewatch ur comfort show',          tag: 'rest'),
+        MenuOption(id: 'j1c', label: 'sleep in or nap aggressively',     tag: 'rest'),
         MenuOption(id: 'j1d', label: 'do absolutely nothing',            tag: 'rest'),
       ],
     ),
@@ -78,9 +78,9 @@ abstract final class TromblMenu {
       sub: "let the food come to u. u earned it.",
       options: [
         MenuOption(id: 'j2a', label: 'ur usual from that one place',         tag: 'order in'),
-        MenuOption(id: 'j2b', label: 'full snack spread, no actual meals',   tag: 'coming soon'),
-        MenuOption(id: 'j2c', label: 'bake something (therapeutic fr)',      tag: 'coming soon'),
-        MenuOption(id: 'j2d', label: 'make a fancy coffee and sit with it',  tag: 'coming soon'),
+        MenuOption(id: 'j2b', label: 'full snack spread, no actual meals',   tag: 'order in'),
+        MenuOption(id: 'j2c', label: 'bake something (therapeutic fr)',      tag: 'order in'),
+        MenuOption(id: 'j2d', label: 'make a fancy coffee and sit with it',  tag: 'order in'),
       ],
     ),
     MenuCategory(
@@ -88,8 +88,8 @@ abstract final class TromblMenu {
       sub: "the quiet stuff that actually fills u up.",
       options: [
         MenuOption(id: 'j3a', label: 'do a full face mask and decompress',   tag: 'rest'),
-        MenuOption(id: 'j3b', label: 'journal or full brain dump',           tag: 'coming soon'),
-        MenuOption(id: 'j3c', label: 'long shower or bath — full ritual',    tag: 'coming soon'),
+        MenuOption(id: 'j3b', label: 'journal or full brain dump',           tag: 'content'),
+        MenuOption(id: 'j3c', label: 'long shower or bath — full ritual',    tag: 'rest'),
         MenuOption(id: 'j3d', label: 'clean and organise ur space',          tag: 'coming soon'),
       ],
     ),

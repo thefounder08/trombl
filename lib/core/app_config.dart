@@ -10,7 +10,7 @@ class AppConfig {
 
   /// Base URL for invite/share links. Change this once when the custom domain
   /// is wired to Netlify — all link generation derives from this constant.
-  static const shareBaseUrl = 'https://trombl.netlify.app';
+  static const shareBaseUrl = 'https://trombl.com';
 
   static bool get isConfigured =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
