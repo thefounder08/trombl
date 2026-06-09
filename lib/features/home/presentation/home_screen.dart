@@ -10,7 +10,6 @@ import '../../decide/domain/ai_pick_model.dart';
 import '../../decide/providers/decide_providers.dart';
 import '../../menu/domain/menu_data.dart';
 import '../../menu/domain/menu_models.dart';
-import '../../menu/providers/menu_providers.dart';
 import '../../menu/presentation/widgets/options_sheet.dart';
 import '../../plans/providers/plan_providers.dart';
 import '../../vibe/providers/session_providers.dart';
@@ -57,18 +56,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final vibe = session.vibe;
     final accent = TromblColors.accentFor(vibe);
     final greetingAsync = ref.watch(homeGreetingProvider);
-    final dynamicMenu = ref.watch(dynamicMenuProvider);
-    final currentMenuKey = ref.watch(menuCacheKeyProvider);
     final myPlans = ref.watch(myPlansProvider);
     final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
 
-    // Only use cached menu if it's for the current vibe+key. dynamicMenuProvider
-    // retains the previous AsyncData while the new vibe's menu loads, so without
-    // this check the UI would show the old vibe's categories for 1-2 seconds.
-    final loadedMenu = dynamicMenu.valueOrNull;
-    final categories = (loadedMenu != null && loadedMenu.cacheKey == currentMenuKey)
-        ? loadedMenu.categories
-        : TromblMenu.core(vibe);
+    final categories = TromblMenu.core(vibe);
 
     return Scaffold(
       backgroundColor: TromblColors.bg,
