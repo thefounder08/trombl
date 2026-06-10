@@ -617,25 +617,36 @@ class _ActivitySheetState extends ConsumerState<_ActivitySheet> {
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                 children: [
                   // ── Today's menu picks ──────────────────────────────────
-                  if (todayPicks.isNotEmpty) ...[
-                    const Text(
-                      'PICKED TODAY',
-                      style: TextStyle(
-                        color: TromblColors.textMuted,
-                        fontSize: 9,
-                        letterSpacing: 1.5,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: TromblText.sans,
-                      ),
+                  const Text(
+                    'PICKED TODAY',
+                    style: TextStyle(
+                      color: TromblColors.textMuted,
+                      fontSize: 9,
+                      letterSpacing: 1.5,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: TromblText.sans,
                     ),
-                    const SizedBox(height: 10),
+                  ),
+                  const SizedBox(height: 10),
+                  if (todayPicks.isNotEmpty) ...[
                     ...todayPicks.map((p) => _MenuPickCard(
                           pick: p,
                           accent: sessionAccent,
                           onAnswer: _answerMenuPick,
                         )),
-                    const SizedBox(height: 24),
-                  ],
+                  ] else
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'no picks yet today',
+                        style: TextStyle(
+                          color: TromblColors.textMuted,
+                          fontSize: 13,
+                          fontFamily: TromblText.sans,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
                   if (pending.isNotEmpty) ...[
                     const Text(
                       'LOOSE ENDS',

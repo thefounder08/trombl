@@ -11,6 +11,7 @@ import '../../../checkin/providers/checkin_providers.dart';
 import '../../domain/menu_data.dart';
 import '../../domain/menu_models.dart';
 import '../../providers/menu_providers.dart';
+import '../../../home/providers/home_providers.dart';
 import '../../../response/presentation/response_screen.dart';
 
 class OptionsSheet extends ConsumerWidget {
@@ -161,6 +162,7 @@ class OptionsSheet extends ConsumerWidget {
           vibe: vibe,
         );
         ref.invalidate(checkinPicksProvider);
+        ref.invalidate(homeGreetingProvider);
         ref.read(activePickProvider.notifier).set(category, opt);
         // Pop sheet then push response in the same frame.
         Navigator.of(context).pop();

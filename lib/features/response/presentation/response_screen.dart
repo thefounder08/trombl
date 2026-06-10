@@ -78,9 +78,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (result == ActionResult.launched) {
-      context.push('/create-plan',
-          extra: CreatePlanArgs(
-              vibe: args.vibe, optionLabel: args.optionLabel));
+      setState(() => _launched = true);
     } else {
       ref.invalidate(homeGreetingProvider);
       context.go('/home');
@@ -159,7 +157,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                 child: const Text(
                   '← back',
                   style: TextStyle(
-                    color: TromblColors.textMuted,
+                    color: TromblColors.textSub,
                     fontSize: 13,
                     fontFamily: TromblText.sans,
                   ),

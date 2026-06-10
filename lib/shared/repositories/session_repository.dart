@@ -114,7 +114,7 @@ class SessionRepository {
   Future<List<Pick>> picksForSessions(List<String> sessionIds) async {
     if (sessionIds.isEmpty) return [];
     final rows =
-        await _client.from('picks').select().inFilter('session_id', sessionIds);
+        await _client.from('picks').select().inFilter('session_id', sessionIds).order('created_at', ascending: false);
     return (rows as List).map((r) => Pick.fromJson(r)).toList();
   }
 
