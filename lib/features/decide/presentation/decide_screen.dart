@@ -10,9 +10,11 @@ import '../../../core/ai/models/llm_message.dart';
 import '../../../core/providers.dart';
 import '../../../core/services/weather_service.dart';
 import '../../../shared/result.dart';
+import '../../../core/observability/analytics_service.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../menu/domain/action_engine.dart';
 import '../../menu/domain/menu_models.dart';
+import '../../menu/presentation/action_launcher.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../domain/ai_pick_model.dart';
 import '../domain/pick_fallback.dart';
@@ -220,19 +222,32 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     final session = ref.read(activeSessionProvider);
     final option =
         MenuOption(id: 'ai_${pick.id}', label: pick.pickText, tag: pick.tag);
-    final result = await ActionEngine.execute(
+    final result = ActionEngine.resolve(
       option: option,
       vibe: session?.vibe ?? 'fomo',
+      city: ref.read(cityProvider),
     );
 
     if (!mounted) return;
     setState(() => _actionLoading = false);
 
-    if (result == ActionResult.dndInternal) {
-      context.push('/dnd');
-    } else {
-      context.go('/home');
+    switch (result) {
+      case InternalRouteAction(:final route):
+        if (route == '/dnd') AnalyticsService.dndEntered();
+        context.push(route);
+        return;
+      case ExternalUrlAction(:final url, :final fallbackUrl):
+        await ActionLauncher.launchExternal(
+          url,
+          fallbackUrl: fallbackUrl,
+          context: context,
+        );
+      case ChatSeedAction():
+      case ComingSoonAction():
+      case FailedAction():
+        break; // fall through to go home
     }
+    if (mounted) context.go('/home');
   }
 
   // ── LLM response parsing ─────────────────────────────────────────────────────

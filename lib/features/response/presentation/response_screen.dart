@@ -7,9 +7,11 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../core/observability/analytics_service.dart';
 import '../../../shared/models/models.dart';
+import '../../chat/presentation/chat_args.dart';
 import '../../home/providers/home_providers.dart';
 import '../../menu/domain/action_engine.dart';
 import '../../menu/domain/menu_models.dart';
+import '../../menu/presentation/action_launcher.dart';
 import '../../plan/presentation/create_plan_screen.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/reaction_provider.dart';
@@ -69,7 +71,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
       label: args.optionLabel,
       tag: args.tag,
     );
-    final result = await ActionEngine.execute(
+    final result = ActionEngine.resolve(
       option: option,
       vibe: args.vibe,
       tromMessage: args.tromMessage,
@@ -77,11 +79,15 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
     AnalyticsService.actionLaunched(tag: args.tag, result: result.name);
     if (!mounted) return;
     setState(() => _loading = false);
-    if (result == ActionResult.launched) {
-      setState(() => _launched = true);
-    } else {
-      ref.invalidate(homeGreetingProvider);
-      context.go('/home');
+    if (result case ExternalUrlAction(:final url, :final fallbackUrl)) {
+      final ok = await ActionLauncher.launchExternal(
+        url,
+        fallbackUrl: fallbackUrl,
+        context: context,
+      );
+      if (!mounted) return;
+      if (ok) setState(() => _launched = true);
+      // If launch failed, launcher already showed a snackbar — stay on screen.
     }
   }
 
@@ -97,26 +103,39 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
         label: args.optionLabel,
         tag: args.tag,
       );
-      final result = await ActionEngine.execute(
+      final result = ActionEngine.resolve(
         option: option,
         vibe: args.vibe,
-        tromMessage: args.tromMessage,
+        city: ref.read(cityProvider),
       );
       AnalyticsService.actionLaunched(tag: args.tag, result: result.name);
       if (!mounted) return;
       setState(() => _loading = false);
       switch (result) {
-        case ActionResult.dndInternal:
-          AnalyticsService.dndEntered();
-          context.push('/dnd');
-        case ActionResult.launched:
-          // Stay on screen — user returns from external app and sees the
-          // affirmation + "fr did it / nah" confirmation prompt.
-          setState(() => _launched = true);
-        case ActionResult.comingSoon:
-        case ActionResult.failed:
-          ref.invalidate(homeGreetingProvider);
-          context.go('/home');
+        case InternalRouteAction(:final route):
+          if (route == '/dnd') {
+            AnalyticsService.dndEntered();
+            // go() disposes this screen immediately so the in-flight
+            // reactionProvider update cannot rebuild a half-popped widget.
+            context.go(route);
+          } else {
+            context.push(route);
+          }
+        case ExternalUrlAction(:final url, :final fallbackUrl):
+          final ok = await ActionLauncher.launchExternal(
+            url,
+            fallbackUrl: fallbackUrl,
+            context: context,
+          );
+          if (!mounted) return;
+          // Stay on screen after external launch — show "fr did it / nah".
+          if (ok) setState(() => _launched = true);
+        case ChatSeedAction(:final seedText):
+          context.push('/chat', extra: ChatArgs(seedText: seedText));
+        case ComingSoonAction():
+          ActionLauncher.showComingSoon(context);
+        case FailedAction(:final message):
+          ActionLauncher.showFailed(context, message);
       }
     } else {
       ref.invalidate(homeGreetingProvider);

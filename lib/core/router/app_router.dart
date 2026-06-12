@@ -21,6 +21,8 @@ import '../../features/plans/presentation/join_plan_screen.dart';
 import '../../features/decide/presentation/decide_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
+import '../../features/chat/presentation/chat_args.dart';
+import '../../features/chat/presentation/chat_screen.dart';
 
 /// Shared fade+float page transition.
 Page<T> _page<T>(LocalKey key, Widget child) => CustomTransitionPage<T>(
@@ -155,6 +157,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/history',
         pageBuilder: (_, s) => _page(s.pageKey, const HistoryScreen()),
+      ),
+      GoRoute(
+        path: '/chat',
+        pageBuilder: (_, s) =>
+            _page(s.pageKey, ChatScreen(args: s.extra! as ChatArgs)),
       ),
     ],
   );

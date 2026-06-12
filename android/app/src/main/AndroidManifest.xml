@@ -62,5 +62,25 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- url_launcher: WhatsApp -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="whatsapp"/>
+        </intent>
+        <!-- url_launcher: Zomato deep link -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="zomato"/>
+        </intent>
+        <!-- url_launcher: Spotify deep link -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="spotify"/>
+        </intent>
+        <!-- url_launcher: Instagram deep link -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="instagram"/>
+        </intent>
     </queries>
 </manifest>

@@ -66,11 +66,13 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<!-- Allow url_launcher to open WhatsApp, Instagram, https links -->
+	<!-- Allow url_launcher to open WhatsApp, Instagram, Zomato, Spotify, https -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>whatsapp</string>
 		<string>instagram</string>
+		<string>zomato</string>
+		<string>spotify</string>
 		<string>https</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
