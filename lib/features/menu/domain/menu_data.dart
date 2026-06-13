@@ -67,8 +67,8 @@ abstract final class TromblMenu {
       id: 'j1', emoji: '🛌', title: 'fully rot today',
       sub: "no guilt. ur recharging. this is valid.",
       options: [
-        MenuOption(id: 'j1a', label: 'binge netflix or youtube',         tag: 'rest'),
-        MenuOption(id: 'j1b', label: 'rewatch ur comfort show',          tag: 'rest'),
+        MenuOption(id: 'j1a', label: 'watch something new',              tag: 'rest'),
+        MenuOption(id: 'j1b', label: 'endless videos',                   tag: 'rest'),
         MenuOption(id: 'j1c', label: 'sleep in or nap aggressively',     tag: 'rest'),
         MenuOption(id: 'j1d', label: 'do absolutely nothing',            tag: 'rest'),
       ],

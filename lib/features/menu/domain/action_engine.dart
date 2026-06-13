@@ -196,6 +196,11 @@ abstract final class ActionEngine {
   static ActionResult _resolveDiscover(String label, String? city) {
     final l = label.toLowerCase();
 
+    // Club / dance → district.in (nightlife discovery platform).
+    if (l.contains('club') || l.contains('dance')) {
+      return const ExternalUrlAction('https://www.district.in/');
+    }
+
     // Activity / local-search options → Google Maps (no ticket needed).
     if (_any(l, [
       'gym', 'fitness', 'spot', 'class', 'cafe', 'coffee', 'walk',
@@ -252,12 +257,10 @@ abstract final class ActionEngine {
     // A few static JOMO options are labelled as streaming/music content but
     // carry the 'rest' tag. Route them to the right platform; everything else
     // goes to the DnD screen.
-    if (l.contains('rewatch') || l.contains('comfort show')) {
-      return ExternalUrlAction(
-        'https://www.netflix.com/search?q=${Uri.encodeComponent('comfort show')}',
-      );
+    if (_any(l, ['endless', 'videos'])) {
+      return const ExternalUrlAction('https://www.youtube.com/');
     }
-    if (_any(l, ['netflix', 'binge', 'youtube'])) {
+    if (_any(l, ['watch', 'netflix', 'binge'])) {
       return const ExternalUrlAction(
         'https://www.netflix.com/',
         fallbackUrl: 'https://www.youtube.com/',
