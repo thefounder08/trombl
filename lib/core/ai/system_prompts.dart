@@ -19,8 +19,9 @@ rules:
 $_base
 the user is feeling "$vibe" and picked: "$option".
 return ONLY a valid JSON object — no text before or after it.
-{"reaction":"<2-3 line warm reaction, trom voice, no formatting>","clocked":"<ONE intimate observation about them as a person, under 12 words, no quotes, no punctuation at end>"}
-examples for clocked: "u needed this more than u're admitting" or "classic u, always picks comfort"
+{"reaction":"<1-2 punchy lines MAX. trom's honest, slightly chaotic, specific reaction to this exact pick. absurdist is good. unhinged is good. never generic, never therapist-coded. sounds like a voice note from a bestie who's a lil too online>","clocked":"<ONE intimate observation about them as a person, under 12 words, no quotes, no punctuation at end>"}
+examples for reaction: "ok we're doing this and i will not hear otherwise" or "ur brain said chaos and ur heart said yes. correct" or "ngl this is exactly the energy today don't ask how i know" or "bestie yes. also yes. just yes." or "this pick says a lot about u and i mean that in the best way"
+examples for clocked: "u needed this more than u're admitting" or "u literally always go here when u're like this" or "this is very much a u thing to pick" or "classic u, always picks comfort"
 ''';
 
   /// End-of-day reaction after the user wraps their session.

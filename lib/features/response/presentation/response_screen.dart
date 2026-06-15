@@ -257,7 +257,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                             children: [
                               Padding(
                                 padding:
-                                    const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                                    const EdgeInsets.fromLTRB(14, 12, 14, 0),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -280,22 +280,21 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                                       error: (_, __) => const Text(
                                         "here's something that'll do.",
                                         style: TextStyle(
-                                          fontFamily: TromblText.serif,
-                                          fontSize: 23,
-                                          fontWeight: FontWeight.w700,
+                                          fontFamily: TromblText.sans,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
                                           color: TromblColors.textMuted,
-                                          height: 1.4,
+                                          height: 1.45,
                                         ),
                                       ),
                                       data: (r) => Text(
                                         r.reaction.isNotEmpty ? r.reaction : '…',
                                         style: const TextStyle(
-                                          fontFamily: TromblText.serif,
-                                          fontSize: 23,
-                                          fontWeight: FontWeight.w700,
+                                          fontFamily: TromblText.sans,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
                                           color: TromblColors.text,
-                                          height: 1.4,
-                                          letterSpacing: -0.2,
+                                          height: 1.45,
                                         ),
                                       ),
                                     ),
@@ -386,9 +385,9 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                                       r.clocked,
                                       style: const TextStyle(
                                         color: TromblColors.textSub,
-                                        fontSize: 14,
+                                        fontSize: 12,
                                         fontFamily: TromblText.sans,
-                                        height: 1.45,
+                                        height: 1.4,
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
@@ -659,11 +658,11 @@ class _TypingIndicatorState extends State<_TypingIndicator>
         child: const Text(
           'trom is thinking…',
           style: TextStyle(
-            fontFamily: TromblText.serif,
-            fontSize: 23,
-            fontWeight: FontWeight.w700,
+            fontFamily: TromblText.sans,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
             color: TromblColors.textMuted,
-            height: 1.4,
+            height: 1.45,
           ),
         ),
       ),

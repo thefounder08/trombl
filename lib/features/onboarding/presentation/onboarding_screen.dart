@@ -140,7 +140,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // Non-fatal — let user proceed even if save fails
     }
 
-    if (mounted) context.go('/vibe');
+    if (mounted) context.go('/tutorial');
   }
 
   @override
