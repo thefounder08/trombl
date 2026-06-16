@@ -30,7 +30,7 @@ abstract final class TromblMenu {
       id: 'f3', emoji: '💸', title: 'treat urself',
       sub: "u deserve it and u know it.",
       options: [
-        MenuOption(id: 'f3a', label: 'fancy dinner, main character era',          tag: 'order in'),
+        MenuOption(id: 'f3a', label: 'fancy dinner, main character era',          tag: 'discover'),
         MenuOption(id: 'f3b', label: 'book a concert or show',                    tag: 'discover'),
         MenuOption(id: 'f3c', label: 'get ur hair or nails done',                 tag: 'discover'),
         MenuOption(id: 'f3d', label: 'do something the future-you will remember', tag: 'coming soon'),
@@ -67,8 +67,8 @@ abstract final class TromblMenu {
       id: 'j1', emoji: '🛌', title: 'fully rot today',
       sub: "no guilt. ur recharging. this is valid.",
       options: [
-        MenuOption(id: 'j1a', label: 'watch something new',              tag: 'rest'),
-        MenuOption(id: 'j1b', label: 'endless videos',                   tag: 'rest'),
+        MenuOption(id: 'j1a', label: 'binge netflix or youtube',          tag: 'rest'),
+        MenuOption(id: 'j1b', label: 'rewatch ur comfort show',          tag: 'rest'),
         MenuOption(id: 'j1c', label: 'sleep in or nap aggressively',     tag: 'rest'),
         MenuOption(id: 'j1d', label: 'do absolutely nothing',            tag: 'rest'),
       ],
@@ -79,8 +79,8 @@ abstract final class TromblMenu {
       options: [
         MenuOption(id: 'j2a', label: 'ur usual from that one place',         tag: 'order in'),
         MenuOption(id: 'j2b', label: 'full snack spread, no actual meals',   tag: 'order in'),
-        MenuOption(id: 'j2c', label: 'bake something (therapeutic fr)',      tag: 'order in'),
-        MenuOption(id: 'j2d', label: 'make a fancy coffee and sit with it',  tag: 'order in'),
+        MenuOption(id: 'j2c', label: 'bake something (therapeutic fr)',      tag: 'rest'),
+        MenuOption(id: 'j2d', label: 'make a fancy coffee and sit with it',  tag: 'rest'),
       ],
     ),
     MenuCategory(
@@ -330,6 +330,18 @@ abstract final class TromblMenu {
         ...core(vibe),
         newDrop(vibe),
       ];
+
+  /// Option-specific squad WhatsApp draft. Returns null for options that
+  /// intentionally have no pre-filled text (e.g. f2b "reach out to that one person").
+  static String? squadMessageForOption(String optionId, String vibe) {
+    return switch (optionId) {
+      'f1a' => "who's free tonight, rooftop situation? don't overthink it.",
+      'f1c' => "bar hop tonight, who's joining? first one to reply picks the first spot.",
+      'f2a' => "ok what are we actually doing tonight. someone pick something rn.",
+      'f2b' => null, // opens contact list only — no pre-filled message
+      _     => squadMessage(vibe), // fallback for squad options in other time layers
+    };
+  }
 
   /// Random trom-voiced squad WhatsApp message for the given vibe.
   static String squadMessage(String vibe) {

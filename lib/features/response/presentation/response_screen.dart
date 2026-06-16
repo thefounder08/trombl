@@ -42,15 +42,36 @@ class ResponseScreen extends ConsumerStatefulWidget {
 
 class _ResponseScreenState extends ConsumerState<ResponseScreen> {
   bool _loading = false;
-  bool _launched = false; // true after external app opens
+  bool _launched = false;
+
+  // Secondary button shown after a DualUrlAction's primary URL is launched.
+  String? _secondaryLabel;
+  String? _secondaryUrl;
+
+  // Memory-query state.
+  bool _showMemoryPrompt = false;
+  MemoryQueryAction? _pendingMemoryAction;
+  final _memoryController = TextEditingController();
 
   ResponseArgs get args => widget.args;
+
+  // Pre-compute action once so MultiButtonAction buttons render on first build.
+  late final ActionResult _preAction = ActionEngine.resolve(
+    option: MenuOption(id: args.pick.optionId, label: args.optionLabel, tag: args.tag),
+    vibe: args.vibe,
+    tromMessage: args.tromMessage,
+  );
+
+  @override
+  void dispose() {
+    _memoryController.dispose();
+    super.dispose();
+  }
 
   static String _contextLine(String vibe) => vibe == 'fomo'
       ? '⚡ fomo pick · going for it'
       : '🛌 jomo pick · protecting ur energy';
 
-  // Tag-based fallback first step (used when AI field is empty).
   static String _fallbackFirstStep(String tag) => switch (tag) {
         'squad'    => "open the group chat and send smth rn.",
         'discover' => "search it up right now. don't save it for later.",
@@ -61,6 +82,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
         _          => "one thing. right now. just start.",
       };
 
+  // ── WhatsApp draft button (squad options with tromMessage) ─────────────────
 
   Future<void> _textSquad() async {
     if (_loading) return;
@@ -79,6 +101,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
     AnalyticsService.actionLaunched(tag: args.tag, result: result.name);
     if (!mounted) return;
     setState(() => _loading = false);
+
     if (result case ExternalUrlAction(:final url, :final fallbackUrl)) {
       final ok = await ActionLauncher.launchExternal(
         url,
@@ -87,70 +110,188 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
       );
       if (!mounted) return;
       if (ok) setState(() => _launched = true);
-      // If launch failed, launcher already showed a snackbar — stay on screen.
+    } else if (result case DualUrlAction(
+      primaryUrl: final url,
+      primaryFallbackUrl: final fallback,
+      secondaryLabel: final sLabel,
+      secondaryUrl: final sUrl,
+    )) {
+      setState(() { _secondaryLabel = sLabel; _secondaryUrl = sUrl; });
+      final ok = await ActionLauncher.launchExternal(
+        url,
+        fallbackUrl: fallback,
+        context: context,
+      );
+      if (!mounted) return;
+      if (ok) setState(() => _launched = true);
     }
   }
+
+  // ── Primary CTA handler ────────────────────────────────────────────────────
 
   Future<void> _onIt() async {
     if (_loading) return;
     HapticFeedback.heavyImpact();
 
     final def = ActionEngine.definitionFor(args.tag);
-    if (args.tag != 'squad' && def != null) {
-      setState(() => _loading = true);
-      final option = MenuOption(
-        id: args.pick.optionId,
-        label: args.optionLabel,
-        tag: args.tag,
-      );
-      final result = ActionEngine.resolve(
-        option: option,
-        vibe: args.vibe,
-        city: ref.read(cityProvider),
-      );
-      AnalyticsService.actionLaunched(tag: args.tag, result: result.name);
-      if (!mounted) return;
-      setState(() => _loading = false);
-      switch (result) {
-        case InternalRouteAction(:final route):
-          if (route == '/dnd') {
-            AnalyticsService.dndEntered();
-            // go() disposes this screen immediately so the in-flight
-            // reactionProvider update cannot rebuild a half-popped widget.
-            context.go(route);
-          } else {
-            context.push(route);
-          }
-        case ExternalUrlAction(:final url, :final fallbackUrl):
-          final ok = await ActionLauncher.launchExternal(
-            url,
-            fallbackUrl: fallbackUrl,
-            context: context,
-          );
-          if (!mounted) return;
-          // Stay on screen after external launch — show "fr did it / nah".
-          if (ok) setState(() => _launched = true);
-        case ChatSeedAction(:final seedText):
-          context.push('/chat', extra: ChatArgs(seedText: seedText));
-        case ComingSoonAction():
-          ActionLauncher.showComingSoon(context);
-        case FailedAction(:final message):
-          ActionLauncher.showFailed(context, message);
-      }
-    } else {
+
+    // Squad with a visible draft block → "i'm on it →" returns home.
+    // The "text ur squad →" button inside the draft block is the primary CTA.
+    if (args.tag == 'squad' && args.tromMessage != null) {
       ref.invalidate(homeGreetingProvider);
       context.go('/home');
+      return;
+    }
+
+    if (def == null) {
+      ref.invalidate(homeGreetingProvider);
+      context.go('/home');
+      return;
+    }
+
+    setState(() => _loading = true);
+    final option = MenuOption(
+      id: args.pick.optionId,
+      label: args.optionLabel,
+      tag: args.tag,
+    );
+    final result = ActionEngine.resolve(
+      option: option,
+      vibe: args.vibe,
+      city: ref.read(cityProvider),
+      tromMessage: args.tromMessage,
+    );
+    AnalyticsService.actionLaunched(tag: args.tag, result: result.name);
+    if (!mounted) return;
+
+    switch (result) {
+      case InternalRouteAction(:final route):
+        setState(() => _loading = false);
+        if (route == '/dnd') {
+          AnalyticsService.dndEntered();
+          context.go(route);
+        } else {
+          context.push(route);
+        }
+
+      case ExternalUrlAction(:final url, :final fallbackUrl):
+        final ok = await ActionLauncher.launchExternal(
+          url, fallbackUrl: fallbackUrl, context: context,
+        );
+        if (!mounted) return;
+        setState(() { _loading = false; if (ok) _launched = true; });
+
+      case DualUrlAction(
+          primaryUrl: final url,
+          primaryFallbackUrl: final fallback,
+          secondaryLabel: final sLabel,
+          secondaryUrl: final sUrl,
+        ):
+        final ok = await ActionLauncher.launchExternal(
+          url, fallbackUrl: fallback, context: context,
+        );
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          if (ok) {
+            _launched = true;
+            _secondaryLabel = sLabel;
+            _secondaryUrl = sUrl;
+          }
+        });
+
+      case MultiButtonAction():
+        // Rendered as buttons in build — should not reach _onIt.
+        setState(() => _loading = false);
+
+      case MemoryQueryAction():
+        await _handleMemoryAction(result);
+
+      case ChatSeedAction(:final seedText):
+        setState(() => _loading = false);
+        context.push('/chat', extra: ChatArgs(seedText: seedText));
+
+      case ComingSoonAction():
+        setState(() => _loading = false);
+        ActionLauncher.showComingSoon(context);
+
+      case FailedAction(:final message):
+        setState(() => _loading = false);
+        ActionLauncher.showFailed(context, message);
     }
   }
 
+  // ── Memory query helpers ───────────────────────────────────────────────────
+
+  Future<void> _handleMemoryAction(MemoryQueryAction action) async {
+    final repo = ref.read(sessionRepositoryProvider);
+    final saved = await repo.readPreference(action.memoryKey);
+    if (!mounted) return;
+
+    if (saved != null && saved.isNotEmpty) {
+      final url = action.urlTemplate.replaceAll(
+        '{value}', Uri.encodeComponent(saved),
+      );
+      final ok = await ActionLauncher.launchExternal(url, context: context);
+      if (!mounted) return;
+      setState(() { _loading = false; if (ok) _launched = true; });
+    } else {
+      setState(() {
+        _loading = false;
+        _showMemoryPrompt = true;
+        _pendingMemoryAction = action;
+      });
+    }
+  }
+
+  Future<void> _submitMemoryPrompt() async {
+    final value = _memoryController.text.trim();
+    if (value.isEmpty || _pendingMemoryAction == null) return;
+    setState(() => _loading = true);
+
+    await ref.read(sessionRepositoryProvider).saveMemoryNode(
+      type: 'preference',
+      content: '${_pendingMemoryAction!.memoryKey}: $value',
+    );
+
+    final url = _pendingMemoryAction!.urlTemplate.replaceAll(
+      '{value}', Uri.encodeComponent(value),
+    );
+    if (!mounted) return;
+    setState(() { _showMemoryPrompt = false; _pendingMemoryAction = null; });
+
+    final ok = await ActionLauncher.launchExternal(url, context: context);
+    if (!mounted) return;
+    setState(() { _loading = false; if (ok) _launched = true; });
+  }
+
+  // ── Multi-button tap handler ───────────────────────────────────────────────
+
+  Future<void> _onMultiButtonTap(String url) async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    HapticFeedback.heavyImpact();
+    final ok = await ActionLauncher.launchExternal(url, context: context);
+    if (!mounted) return;
+    setState(() { _loading = false; if (ok) _launched = true; });
+  }
+
+  // ── Secondary URL tap (after DualUrlAction primary launch) ────────────────
+
+  Future<void> _onSecondaryTap(String url) async {
+    await ActionLauncher.launchExternal(url, context: context);
+  }
+
+  // ── Done / not done ───────────────────────────────────────────────────────
+
   Future<void> _markDone(bool done) async {
     HapticFeedback.selectionClick();
-    await ref
-        .read(sessionRepositoryProvider)
-        .setPickDone(args.pick.id, done);
+    await ref.read(sessionRepositoryProvider).setPickDone(args.pick.id, done);
     ref.invalidate(homeGreetingProvider);
     if (mounted) context.go('/home');
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +324,6 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                 ),
               ),
 
-              // ── Scrollable — no fixed heights ───────────────────────────────
               Expanded(
                 child: SingleChildScrollView(
                   child: Padding(
@@ -191,14 +331,11 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Vibe anchor
                         Text(
                           args.vibe == 'fomo' ? '⚡' : '🛌',
                           style: const TextStyle(fontSize: 36),
                         ),
                         const SizedBox(height: 10),
-
-                        // Pick label — hero
                         Text(
                           args.optionLabel,
                           style: TextStyle(
@@ -211,8 +348,6 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                           ),
                         ),
                         const SizedBox(height: 6),
-
-                        // Context line
                         Text(
                           _contextLine(args.vibe),
                           style: TextStyle(
@@ -224,11 +359,9 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        // ── MISSING 1: "trom clocked it." personality moment ───
                         const Row(
                           children: [
-                            Text('🔥',
-                                style: TextStyle(fontSize: 13)),
+                            Text('🔥', style: TextStyle(fontSize: 13)),
                             SizedBox(width: 5),
                             Text(
                               'trom clocked it.',
@@ -243,7 +376,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        // ── MISSING 4+5: Tinted TROM'S TAKE card, bold text ───
+                        // TROM'S TAKE card
                         Container(
                           width: double.infinity,
                           decoration: BoxDecoration(
@@ -256,12 +389,10 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                                padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Label
                                     Text(
                                       "TROM'S TAKE",
                                       style: TextStyle(
@@ -273,8 +404,6 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                                       ),
                                     ),
                                     const SizedBox(height: 10),
-
-                                    // Reaction — always shows (static fallback on AI failure)
                                     reaction.when(
                                       loading: () => const _TypingIndicator(),
                                       error: (_, __) => const Text(
@@ -301,8 +430,6 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                                   ],
                                 ),
                               ),
-
-                              // DO THIS FIRST — left border accent, rule-based
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(0, 14, 16, 16),
                                 child: Row(
@@ -352,7 +479,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                           ),
                         ),
 
-                        // ── TROM CLOCKED THIS — from combined reactionProvider ──
+                        // TROM CLOCKED THIS
                         reaction.maybeWhen(
                           data: (r) {
                             if (r.clocked.isEmpty) return const SizedBox.shrink();
@@ -399,14 +526,13 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                           orElse: () => const SizedBox.shrink(),
                         ),
 
-                        // ── MISSING 3: Squad draft block ──────────────────────
+                        // Squad draft block
                         if (args.tag == 'squad' &&
                             args.tromMessage != null) ...[
                           const SizedBox(height: 12),
                           Container(
                             width: double.infinity,
-                            padding:
-                                const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                             decoration: BoxDecoration(
                               color: TromblColors.card,
                               borderRadius: BorderRadius.circular(14),
@@ -443,16 +569,13 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                                   onTap: _textSquad,
                                   child: Container(
                                     width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 13),
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF25D366),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      _loading
-                                          ? 'opening…'
-                                          : 'text ur squad →',
+                                      _loading ? 'opening…' : 'text ur squad →',
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         color: Color(0xFF0B0B0D),
@@ -473,147 +596,190 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                 ),
               ),
 
-              // ── Pinned CTAs — clear hierarchy ──────────────────────────────
+              // ── Pinned CTAs ──────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.only(bottom: 24),
-                child: _launched ? _LaunchedCtas(
-                  accent: accent,
-                  tag: args.tag,
-                  onDone: _markDone,
-                ) : Column(
-                  children: [
-                    // PRIMARY — "i'm on it →"
-                    GestureDetector(
-                      onTap: _onIt,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 150),
-                        opacity: _loading ? 0.6 : 1.0,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 17),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                accent,
-                                accent.withValues(alpha: 0.8),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            _loading ? 'on it…' : "i'm on it →",
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Color(0xFF090909),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                              fontFamily: TromblText.sans,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // SECONDARY ROW — make it a plan · share this
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              context.push('/create-plan',
-                                  extra: CreatePlanArgs(
-                                      vibe: args.vibe,
-                                      optionLabel: args.optionLabel));
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              decoration: BoxDecoration(
-                                color: TromblColors.card,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                    color: accent.withValues(alpha: 0.25)),
-                              ),
-                              child: Text(
-                                '🔥 make it a plan',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: accent,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  fontFamily: TromblText.sans,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              HapticFeedback.lightImpact();
-                              final vibeEmoji =
-                                  args.vibe == 'fomo' ? '⚡' : '🛌';
-                              Share.share(
-                                '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
-                                subject: 'trombl pick',
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              decoration: BoxDecoration(
-                                color: TromblColors.card,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: TromblColors.border),
-                              ),
-                              child: const Text(
-                                '🔗 share this',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: TromblColors.textSub,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                  fontFamily: TromblText.sans,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-
-                    // TERTIARY — pick smth else
-                    GestureDetector(
-                      onTap: () => context.go('/home'),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: TromblColors.border),
-                        ),
-                        child: const Text(
-                          'pick smth else',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: TromblColors.textSub,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            fontFamily: TromblText.sans,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                child: _buildCtas(accent),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCtas(Color accent) {
+    // Memory prompt replaces all CTAs.
+    if (_showMemoryPrompt && _pendingMemoryAction != null) {
+      return _MemoryPromptCta(
+        promptText: _pendingMemoryAction!.promptText,
+        controller: _memoryController,
+        onSubmit: _submitMemoryPrompt,
+        onCancel: () => setState(() {
+          _showMemoryPrompt = false;
+          _pendingMemoryAction = null;
+        }),
+        accent: accent,
+        loading: _loading,
+      );
+    }
+
+    // Post-launch CTAs (after any external app opened).
+    if (_launched) {
+      return _LaunchedCtas(
+        accent: accent,
+        tag: args.tag,
+        onDone: _markDone,
+        secondaryLabel: _secondaryLabel,
+        onSecondary: _secondaryUrl != null
+            ? () => _onSecondaryTap(_secondaryUrl!)
+            : null,
+      );
+    }
+
+    // MultiButtonAction — show buttons in place of "i'm on it →".
+    if (_preAction case final MultiButtonAction multi) {
+      return _MultiButtonCta(
+        action: multi,
+        accent: accent,
+        loading: _loading,
+        onTap: _onMultiButtonTap,
+        onPlan: () {
+          HapticFeedback.mediumImpact();
+          context.push('/create-plan',
+              extra: CreatePlanArgs(
+                  vibe: args.vibe, optionLabel: args.optionLabel));
+        },
+        onShare: () {
+          HapticFeedback.lightImpact();
+          final vibeEmoji = args.vibe == 'fomo' ? '⚡' : '🛌';
+          Share.share(
+            '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
+            subject: 'trombl pick',
+          );
+        },
+        onPickElse: () => context.go('/home'),
+      );
+    }
+
+    // Standard CTAs.
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _onIt,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: _loading ? 0.6 : 1.0,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 17),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [accent, accent.withValues(alpha: 0.8)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                _loading ? 'on it…' : "i'm on it →",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF090909),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  context.push('/create-plan',
+                      extra: CreatePlanArgs(
+                          vibe: args.vibe, optionLabel: args.optionLabel));
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: accent.withValues(alpha: 0.25)),
+                  ),
+                  child: Text(
+                    '🔥 make it a plan',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      fontFamily: TromblText.sans,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  final vibeEmoji = args.vibe == 'fomo' ? '⚡' : '🛌';
+                  Share.share(
+                    '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
+                    subject: 'trombl pick',
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: TromblColors.border),
+                  ),
+                  child: const Text(
+                    '🔗 share this',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: TromblColors.textSub,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      fontFamily: TromblText.sans,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () => context.go('/home'),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: TromblColors.border),
+            ),
+            child: const Text(
+              'pick smth else',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: TromblColors.textSub,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontFamily: TromblText.sans,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -671,18 +837,20 @@ class _TypingIndicatorState extends State<_TypingIndicator>
 }
 
 // ─── Post-launch CTAs ─────────────────────────────────────────────────────────
-// Shown after user is sent to external app via "i'm on it →". When they return
-// to trombl, they see an affirmation + "fr did it / nah" to mark completion.
 
 class _LaunchedCtas extends StatelessWidget {
   const _LaunchedCtas({
     required this.accent,
     required this.tag,
     required this.onDone,
+    this.secondaryLabel,
+    this.onSecondary,
   });
   final Color accent;
   final String tag;
   final void Function(bool done) onDone;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
 
   static String _header(String tag) => switch (tag) {
         'squad'    => "text sent. 🔥",
@@ -743,6 +911,32 @@ class _LaunchedCtas extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
+        // Secondary follow-up button (e.g. "find a bar →" after WhatsApp)
+        if (secondaryLabel != null && onSecondary != null) ...[
+          GestureDetector(
+            onTap: onSecondary,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: TromblColors.card,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: accent.withValues(alpha: 0.35)),
+              ),
+              child: Text(
+                secondaryLabel!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+
         // "fr did it" — primary
         GestureDetector(
           onTap: () => onDone(true),
@@ -779,6 +973,265 @@ class _LaunchedCtas extends StatelessWidget {
             ),
             child: const Text(
               "nah didn't happen",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: TromblColors.textSub,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontFamily: TromblText.sans,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Multi-button CTA (Netflix+YouTube, coffee options, etc.) ─────────────────
+
+class _MultiButtonCta extends StatelessWidget {
+  const _MultiButtonCta({
+    required this.action,
+    required this.accent,
+    required this.loading,
+    required this.onTap,
+    required this.onPlan,
+    required this.onShare,
+    required this.onPickElse,
+  });
+  final MultiButtonAction action;
+  final Color accent;
+  final bool loading;
+  final void Function(String url) onTap;
+  final VoidCallback onPlan;
+  final VoidCallback onShare;
+  final VoidCallback onPickElse;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // URL buttons
+        ...action.buttons.map((b) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: GestureDetector(
+                onTap: loading ? null : () => onTap(b.url),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: loading ? 0.6 : 1.0,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [accent, accent.withValues(alpha: 0.8)],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      b.label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF090909),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        fontFamily: TromblText.sans,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )),
+
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: onPlan,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: accent.withValues(alpha: 0.25)),
+                  ),
+                  child: Text(
+                    '🔥 make it a plan',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      fontFamily: TromblText.sans,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: onShare,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: TromblColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: TromblColors.border),
+                  ),
+                  child: const Text(
+                    '🔗 share this',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: TromblColors.textSub,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      fontFamily: TromblText.sans,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: onPickElse,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: TromblColors.border),
+            ),
+            child: const Text(
+              'pick smth else',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: TromblColors.textSub,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontFamily: TromblText.sans,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Memory prompt CTA ────────────────────────────────────────────────────────
+
+class _MemoryPromptCta extends StatelessWidget {
+  const _MemoryPromptCta({
+    required this.promptText,
+    required this.controller,
+    required this.onSubmit,
+    required this.onCancel,
+    required this.accent,
+    required this.loading,
+  });
+  final String promptText;
+  final TextEditingController controller;
+  final VoidCallback onSubmit;
+  final VoidCallback onCancel;
+  final Color accent;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: BoxDecoration(
+            color: TromblColors.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                promptText,
+                style: const TextStyle(
+                  color: TromblColors.text,
+                  fontSize: 14,
+                  fontFamily: TromblText.sans,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: const TextStyle(
+                  color: TromblColors.text,
+                  fontFamily: TromblText.sans,
+                  fontSize: 14,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'type here…',
+                  hintStyle: const TextStyle(
+                    color: TromblColors.textMuted,
+                    fontFamily: TromblText.sans,
+                  ),
+                  filled: true,
+                  fillColor: TromblColors.bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: loading ? null : onSubmit,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: loading ? 0.6 : 1.0,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                gradient:
+                    LinearGradient(colors: [accent, accent.withValues(alpha: 0.8)]),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                loading ? 'opening…' : 'ok, save & open →',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF090909),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: onCancel,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: TromblColors.border),
+            ),
+            child: const Text(
+              'skip for now',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: TromblColors.textSub,

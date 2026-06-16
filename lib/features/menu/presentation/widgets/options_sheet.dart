@@ -135,9 +135,10 @@ class OptionsSheet extends ConsumerWidget {
     final session = ref.read(activeSessionProvider);
     if (session == null) return;
 
-    // Pre-generate squad message before the DB write.
-    final tromMessage =
-        opt.tag == 'squad' ? TromblMenu.squadMessage(vibe) : null;
+    // Pre-generate option-specific squad draft before the DB write.
+    final tromMessage = opt.tag == 'squad'
+        ? TromblMenu.squadMessageForOption(opt.id, vibe)
+        : null;
 
     // DB write happens FIRST — before any pop or navigation.
     final result = await ref.read(sessionRepositoryProvider).addPick(

@@ -184,6 +184,29 @@ class SessionRepository {
     } catch (_) {}
   }
 
+  /// Read a single saved preference by key.
+  /// Looks for a memory_node where type='preference' and content starts with
+  /// '[key]:'. Returns the value after the colon, or null if not found.
+  Future<String?> readPreference(String key) async {
+    try {
+      final rows = await _client
+          .from('memory_nodes')
+          .select()
+          .eq('user_id', _uid)
+          .eq('type', 'preference')
+          .ilike('content', '$key:%')
+          .order('created_at', ascending: false)
+          .limit(1);
+      if ((rows as List).isEmpty) return null;
+      final content = rows.first['content'] as String;
+      final colonIdx = content.indexOf(':');
+      if (colonIdx == -1) return null;
+      return content.substring(colonIdx + 1).trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Fetch recent memory nodes, newest first.
   Future<List<MemoryNode>> recentMemoryNodes({int limit = 5}) async {
     try {

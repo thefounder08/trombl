@@ -242,6 +242,14 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
           fallbackUrl: fallbackUrl,
           context: context,
         );
+      case DualUrlAction(:final primaryUrl, :final primaryFallbackUrl):
+        await ActionLauncher.launchExternal(
+          primaryUrl,
+          fallbackUrl: primaryFallbackUrl,
+          context: context,
+        );
+      case MultiButtonAction():
+      case MemoryQueryAction():
       case ChatSeedAction():
       case ComingSoonAction():
       case FailedAction():

@@ -5,13 +5,10 @@ import '../../../core/theme/trombl_theme.dart';
 import 'menu_data.dart';
 import 'menu_models.dart';
 
-// ─── Result type ─────────────────────────────────────────────────────────────
+// ─── Result types ─────────────────────────────────────────────────────────────
 
 sealed class ActionResult {
   const ActionResult();
-
-  /// Stable string sent to analytics — mirrors old enum `.name` values where
-  /// backward-compatible, new names elsewhere.
   String get name;
 }
 
@@ -22,6 +19,46 @@ final class ExternalUrlAction extends ActionResult {
   final String? fallbackUrl;
   @override
   String get name => 'launched';
+}
+
+/// Primary URL with an optional secondary follow-up button.
+/// Secondary button is shown after the primary URL has been launched.
+final class DualUrlAction extends ActionResult {
+  const DualUrlAction({
+    required this.primaryUrl,
+    this.primaryFallbackUrl,
+    required this.secondaryLabel,
+    required this.secondaryUrl,
+  });
+  final String primaryUrl;
+  final String? primaryFallbackUrl;
+  final String secondaryLabel;
+  final String secondaryUrl;
+  @override
+  String get name => 'dual';
+}
+
+/// Multiple simultaneous URL buttons shown in place of "i'm on it →".
+final class MultiButtonAction extends ActionResult {
+  const MultiButtonAction(this.buttons);
+  final List<({String label, String url})> buttons;
+  @override
+  String get name => 'multi_button';
+}
+
+/// Memory-aware: reads a saved preference, then deep-links; shows an inline
+/// prompt to capture the preference the first time if not yet saved.
+final class MemoryQueryAction extends ActionResult {
+  const MemoryQueryAction({
+    required this.memoryKey,
+    required this.urlTemplate,
+    required this.promptText,
+  });
+  final String memoryKey;
+  final String urlTemplate; // '{value}' is replaced with the found/entered pref
+  final String promptText;
+  @override
+  String get name => 'memory_query';
 }
 
 /// Navigate to an in-app GoRouter route.
@@ -57,8 +94,6 @@ final class FailedAction extends ActionResult {
 
 // ─── Tag enum ─────────────────────────────────────────────────────────────────
 
-/// All tags that appear in [MenuOption.tag]. Exhaustive — add here when a new
-/// tag is introduced so the compiler flags unhandled cases immediately.
 enum MenuTag {
   discover,
   squad,
@@ -76,13 +111,12 @@ enum MenuTag {
         'content'     => MenuTag.content,
         'solo'        => MenuTag.solo,
         'coming soon' => MenuTag.comingSoon,
-        _             => MenuTag.comingSoon, // safe default — shows snackbar
+        _             => MenuTag.comingSoon,
       };
 }
 
 // ─── UI metadata ──────────────────────────────────────────────────────────────
 
-/// Metadata that describes how to present an actionable tag in the UI.
 @immutable
 class ActionDefinition {
   const ActionDefinition({
@@ -101,21 +135,7 @@ class ActionDefinition {
 
 // ─── Engine ───────────────────────────────────────────────────────────────────
 
-/// Pure resolver: option → ActionResult. No url_launcher, no BuildContext,
-/// no GoRouter. All platform calls live in ActionLauncher (presentation layer).
-///
-/// Tag → destination summary
-/// ───────────────────────────────────────────────────────────────────────────
-/// discover   → Maps (activity keywords) or BookMyShow+Maps-fallback (events)
-/// squad      → WhatsApp wa.me with trom-drafted message
-/// order in   → Zomato deep link, web fallback (city-scoped or Maps delivery)
-/// content    → Spotify | ChatSeed | Instagram reels/camera/home
-/// rest       → InternalRouteAction('/dnd')
-/// solo       → keyword-routed: Maps | Gym | Spotify | Netflix | ChatSeed | …
-/// coming soon→ ComingSoonAction
 abstract final class ActionEngine {
-  // ── UI metadata map ────────────────────────────────────────────────────────
-
   static const _defs = <String, ActionDefinition>{
     'discover': ActionDefinition(
       icon: '🔍',
@@ -161,18 +181,11 @@ abstract final class ActionEngine {
     ),
   };
 
-  /// The [ActionDefinition] for [tag], or null if not actionable.
   static ActionDefinition? definitionFor(String tag) => _defs[tag];
-
-  /// True when [tag] has a real action wired up.
   static bool isActionable(String tag) => _defs.containsKey(tag);
 
   // ── Public resolver ────────────────────────────────────────────────────────
 
-  /// Resolve [option] to an [ActionResult]. Synchronous and pure.
-  ///
-  /// [city] is the user's city name (e.g. "Mumbai") used to build city-scoped
-  /// URLs for BookMyShow and Zomato; pass null when unknown.
   static ActionResult resolve({
     required MenuOption option,
     required String vibe,
@@ -182,7 +195,7 @@ abstract final class ActionEngine {
     final tag = MenuTag.fromString(option.tag);
     return switch (tag) {
       MenuTag.discover   => _resolveDiscover(option.label, city),
-      MenuTag.squad      => _resolveSquad(vibe, tromMessage),
+      MenuTag.squad      => _resolveSquad(option.id, vibe, tromMessage),
       MenuTag.orderIn    => _resolveOrderIn(option.label, city),
       MenuTag.rest       => _resolveRest(option.label),
       MenuTag.content    => _resolveContent(option.label),
@@ -196,24 +209,39 @@ abstract final class ActionEngine {
   static ActionResult _resolveDiscover(String label, String? city) {
     final l = label.toLowerCase();
 
-    // Club / dance → district.in (nightlife discovery platform).
-    if (l.contains('club') || l.contains('dance')) {
-      return const ExternalUrlAction('https://www.district.in/');
+    // f1b — live music or gig → Insider.in (NOT BookMyShow)
+    if (l.contains('live music') || l.contains('gig')) {
+      return const ExternalUrlAction('https://insider.in/search?q=live+music');
     }
 
-    // Activity / local-search options → Google Maps (no ticket needed).
+    // f1d — club / dance floor → WhatsApp draft + Maps secondary
+    if (l.contains('club') || l.contains('dance floor')) {
+      return DualUrlAction(
+        primaryUrl: 'https://wa.me/?text=${Uri.encodeComponent("club tonight, who’s actually coming?")}',
+        secondaryLabel: 'find one →',
+        secondaryUrl: 'https://www.google.com/maps/search/nightclub+near+me',
+      );
+    }
+
+    // f3b — book a concert or show → BMS generic events page
+    if (l.contains('concert') || l.contains('book a')) {
+      return const ExternalUrlAction('https://in.bookmyshow.com/explore/events');
+    }
+
+    // Activity / local-search options → Google Maps
     if (_any(l, [
       'gym', 'fitness', 'spot', 'class', 'cafe', 'coffee', 'walk',
       'around', 'close by', '5 min', 'maps', 'market', 'pop-up', 'nearby',
       'trail', 'hike', 'outdoor', 'bike', 'dinner', 'brunch', 'lunch',
       'restaurant', 'hair', 'nails', 'salon', 'somewhere new', 'find a',
+      'fancy', 'fine dining',
     ])) {
       return ExternalUrlAction(
         'https://www.google.com/maps/search/${Uri.encodeComponent(_mapsQueryForDiscover(l))}',
       );
     }
 
-    // Ticketed events → BookMyShow with Google Maps fallback.
+    // Ticketed events → BookMyShow with Google Maps fallback
     final eventQuery = _bmsQuery(l);
     final slug = city != null ? _slug(city) : null;
     final bmsUrl = slug != null
@@ -226,7 +254,25 @@ abstract final class ActionEngine {
     );
   }
 
-  static ActionResult _resolveSquad(String vibe, String? tromMessage) {
+  static ActionResult _resolveSquad(
+      String optionId, String vibe, String? tromMessage) {
+    // f2b — reach out to that one person: no pre-filled text, just open contacts
+    if (optionId == 'f2b') {
+      return const ExternalUrlAction('https://wa.me/');
+    }
+
+    // f1c — bar hop with the crew: specific draft + secondary Maps button
+    if (optionId == 'f1c') {
+      final msg = tromMessage ??
+          "bar hop tonight, who's joining? first one to reply picks the first spot.";
+      return DualUrlAction(
+        primaryUrl: 'https://wa.me/?text=${Uri.encodeComponent(msg)}',
+        secondaryLabel: 'find a bar →',
+        secondaryUrl: 'https://www.google.com/maps/search/bars+near+me',
+      );
+    }
+
+    // All other squad options — WhatsApp with the drafted message
     final msg = tromMessage ?? TromblMenu.squadMessage(vibe);
     return ExternalUrlAction(
       'https://wa.me/?text=${Uri.encodeComponent(msg)}',
@@ -234,13 +280,28 @@ abstract final class ActionEngine {
   }
 
   static ActionResult _resolveOrderIn(String label, String? city) {
-    final cuisine = _inferCuisine(label.toLowerCase());
+    final l = label.toLowerCase();
+
+    // j2a — ur usual from that one place: memory-aware Zomato
+    if (l.contains('usual')) {
+      return const MemoryQueryAction(
+        memoryKey: 'usual_place',
+        urlTemplate: 'https://www.zomato.com/search?q={value}',
+        promptText: "what's ur go-to place?",
+      );
+    }
+
+    // j2b — full snack spread: Zomato snacks search
+    if (l.contains('snack')) {
+      return const ExternalUrlAction(
+        'https://www.zomato.com/search?q=snacks+munchies',
+      );
+    }
+
+    // Generic fallback: Zomato cuisine search
+    final cuisine = _inferCuisine(l);
     final enc = Uri.encodeComponent(cuisine);
-
-    // Primary: Zomato deep link (installed app knows user location).
     final zomatoDeep = 'zomato://search?query=$enc';
-
-    // Fallback: city-scoped Zomato web, or Google Maps delivery search.
     final String webFallback;
     if (city != null) {
       webFallback = 'https://www.zomato.com/${_slug(city)}/delivery?q=$enc';
@@ -248,19 +309,50 @@ abstract final class ActionEngine {
       webFallback =
           'https://www.google.com/maps/search/${Uri.encodeComponent("$cuisine delivery")}';
     }
-
     return ExternalUrlAction(zomatoDeep, fallbackUrl: webFallback);
   }
 
   static ActionResult _resolveRest(String label) {
     final l = label.toLowerCase();
-    // A few static JOMO options are labelled as streaming/music content but
-    // carry the 'rest' tag. Route them to the right platform; everything else
-    // goes to the DnD screen.
+
+    // j1a — binge netflix or youtube: two simultaneous buttons
+    if (l.contains('netflix') || l.contains('binge netflix')) {
+      return const MultiButtonAction([
+        (label: 'netflix →', url: 'https://www.netflix.com'),
+        (label: 'youtube →', url: 'https://www.youtube.com'),
+      ]);
+    }
+
+    // j1b — rewatch ur comfort show: memory-aware Netflix search
+    if (l.contains('rewatch') || l.contains('comfort show')) {
+      return const MemoryQueryAction(
+        memoryKey: 'comfort_show',
+        urlTemplate: 'https://www.netflix.com/search?q={value}',
+        promptText: "what's ur comfort show?",
+      );
+    }
+
+    // j2d (now rest) — make a fancy coffee: three YouTube recipe options
+    if (l.contains('coffee')) {
+      return const MultiButtonAction([
+        (label: '☕ dalgona whip →', url: 'https://www.youtube.com/results?search_query=dalgona+coffee+recipe'),
+        (label: '🫗 pour over →',    url: 'https://www.youtube.com/results?search_query=pour+over+coffee+at+home'),
+        (label: '🧊 iced latte →',   url: 'https://www.youtube.com/results?search_query=iced+latte+at+home+easy'),
+      ]);
+    }
+
+    // j2c (now rest) — bake something: YouTube baking recipe
+    if (l.contains('bake')) {
+      return const ExternalUrlAction(
+        'https://www.youtube.com/results?search_query=easy+baking+recipe+beginner',
+      );
+    }
+
+    // Legacy rest options that carry streaming/music labels
     if (_any(l, ['endless', 'videos'])) {
       return const ExternalUrlAction('https://www.youtube.com/');
     }
-    if (_any(l, ['watch', 'netflix', 'binge'])) {
+    if (_any(l, ['watch', 'binge'])) {
       return const ExternalUrlAction(
         'https://www.netflix.com/',
         fallbackUrl: 'https://www.youtube.com/',
@@ -272,13 +364,19 @@ abstract final class ActionEngine {
         fallbackUrl: 'https://open.spotify.com/',
       );
     }
+
     return const InternalRouteAction('/dnd');
   }
 
   static ActionResult _resolveContent(String label) {
     final l = label.toLowerCase();
 
-    // Spotify / playlist / music.
+    // j3b, j4a — journal / brain dump / write down → in-app journal screen
+    if (l.contains('brain dump') || l.contains('write down')) {
+      return const InternalRouteAction('/journal');
+    }
+
+    // Spotify / playlist / music
     if (_any(l, ['spotify', 'playlist', 'music', 'song', 'album'])) {
       return const ExternalUrlAction(
         'spotify://',
@@ -286,15 +384,15 @@ abstract final class ActionEngine {
       );
     }
 
-    // Journal / brain dump / write → stay in chat.
+    // Remaining journal / reflect / write options → chat seed
     if (_any(l, [
-      'brain dump', 'journal', 'write', 'reflect', 'vent',
+      'journal', 'write', 'reflect', 'vent',
       'priorities', 'letter', 'vision board', 'honest', 'opinion',
     ])) {
       return ChatSeedAction(_contentSeed(l));
     }
 
-    // Reel / vlog.
+    // Reel / vlog
     if (l.contains('reel') || l.contains('vlog')) {
       return const ExternalUrlAction(
         'instagram://reels',
@@ -302,7 +400,7 @@ abstract final class ActionEngine {
       );
     }
 
-    // Post / story / photo.
+    // Post / story / photo
     if (_any(l, ['post', 'story', 'photo'])) {
       return const ExternalUrlAction(
         'instagram://camera',
@@ -310,54 +408,19 @@ abstract final class ActionEngine {
       );
     }
 
-    // Default → Instagram home.
     return const ExternalUrlAction(
       'instagram://',
       fallbackUrl: 'https://www.instagram.com/',
     );
   }
 
-  /// Keyword-routed handler for the `solo` tag.
-  ///
-  /// Label → destination table (all time-aware solo options verified):
-  ///
-  /// 'sunlight first, phone second'        → Maps park (sunlight → outside)
-  /// '5 minutes outside'                   → Maps park
-  /// 'make something warm'                 → YouTube recipe (make/warm)
-  /// 'proper meal, no excuses'             → YouTube recipe (meal)
-  /// 'quick walk outside'                  → Maps park
-  /// 'whatever gets u breathing'           → Maps park (breathing = movement)
-  /// 'one small thing done'                → ChatSeed focus
-  /// 'timer on, everything off'            → ChatSeed focus
-  /// 'one task, start to finish'           → ChatSeed focus
-  /// 'inbox zero, just one folder'         → ChatSeed focus
-  /// 'away from the desk — non-negotiable' → Maps park (desk = step away)
-  /// 'walk around the block'               → Maps park
-  /// 'find a bench'                        → Maps park (bench = outside)
-  /// 'clear the blocker'                   → ChatSeed focus
-  /// 'just leave the house'                → Maps park (leave = go out)
-  /// 'evening run or walk'                 → Maps park
-  /// 'whatever tonight version of u wants' → ChatSeed (tonight = vague evening)
-  /// 'reflect on today honestly'           → ChatSeed journal
-  /// 'one thing for tomorrow'              → ChatSeed focus
-  /// "lay out tomorrow's stuff"            → ChatSeed focus
-  /// 'make something warm to wind down'    → ChatSeed (wind down wins)
-  /// 'just walk and see what u find'       → Maps park
-  /// 'park or green space'                 → Maps park
-  /// 'trail or walk'                       → Maps park
-  /// 'morning run or bike'                 → Maps park
-  /// 'that thing u keep putting off'       → ChatSeed focus
   static ActionResult _resolveSolo(String label) {
     final l = label.toLowerCase();
 
-    // ── 1. Sleep / phone-down → /dnd ──────────────────────────────────────
     if (_any(l, ['sleep', 'bed', 'lights out', 'log off', 'phone down'])) {
       return const InternalRouteAction('/dnd');
     }
 
-    // ── 2. Wind-down / journal → ChatSeed ─────────────────────────────────
-    // Checked BEFORE cook/make so "make something warm to wind down" → seed,
-    // not YouTube. Also handles explicit breathe/reset/slow morning.
     if (_any(l, [
       'wind down', 'unplug', 'slow morning', 'journal', 'reflect',
       'brain dump', 'vent',
@@ -365,9 +428,6 @@ abstract final class ActionEngine {
       return ChatSeedAction(_journalSeed(l));
     }
 
-    // ── 3. Movement → Maps park ────────────────────────────────────────────
-    // 'breathing' here means physical-activity context (not the explicit
-    // keyword 'breathe' which is in bucket 2 for wind-down journaling).
     if (_any(l, [
       'walk', 'run', 'jog', 'stretch', 'steps', 'trail', 'outside',
       'bench', 'park', 'bike', 'breathing', 'sunlight', 'block',
@@ -378,14 +438,12 @@ abstract final class ActionEngine {
       );
     }
 
-    // ── 4. Gym → Maps gym ──────────────────────────────────────────────────
     if (_any(l, ['gym', 'workout', 'fitness'])) {
       return const ExternalUrlAction(
         'https://www.google.com/maps/search/gym+near+me',
       );
     }
 
-    // ── 5. Music → Spotify ─────────────────────────────────────────────────
     if (_any(l, [
       'music', 'playlist', 'spotify', 'song', 'lofi', 'podcast',
       'album', 'artist', 'listen',
@@ -396,7 +454,6 @@ abstract final class ActionEngine {
       );
     }
 
-    // ── 6. Netflix — series/rewatch (checked BEFORE generic 'watch') ───────
     if (_any(l, ['series', 'episode', 'rewatch', 'comfort show', 'netflix'])) {
       final q = l.contains('comfort') ? 'comfort show' : 'series';
       return ExternalUrlAction(
@@ -404,36 +461,30 @@ abstract final class ActionEngine {
       );
     }
 
-    // ── 7. Binge → ChatSeed (trom picks the genre, then deep-links) ────────
     if (l.contains('binge')) {
       return const ChatSeedAction(
         "okay what are we feeling — comfort rewatch or something new?",
       );
     }
 
-    // ── 8. Generic watch / movie → YouTube ─────────────────────────────────
     if (_any(l, ['movie', 'watch', 'film'])) {
       return const ExternalUrlAction('https://www.youtube.com/');
     }
 
-    // ── 9. Book → Goodreads ────────────────────────────────────────────────
     if (_any(l, ['read', 'book', 'article'])) {
       return const ExternalUrlAction('https://www.goodreads.com/');
     }
 
-    // ── 10. Recipe / cook → YouTube search ────────────────────────────────
     if (_any(l, ['cook', 'recipe', 'bake', 'make', 'meal', 'warm'])) {
       return ExternalUrlAction(
         'https://www.youtube.com/results?search_query=${Uri.encodeComponent("easy recipes")}',
       );
     }
 
-    // ── 11. Write / reflect → ChatSeed journal ─────────────────────────────
     if (_any(l, ['write', 'reflect', 'breathe', 'reset'])) {
       return ChatSeedAction(_journalSeed(l));
     }
 
-    // ── 12. Focus / productivity → ChatSeed ───────────────────────────────
     if (_any(l, [
       'timer', 'task', 'inbox', 'blocker', 'tomorrow', 'priorities',
       'small', 'putting off', 'tonight', 'one thing', 'stuff',
@@ -441,7 +492,6 @@ abstract final class ActionEngine {
       return ChatSeedAction(_focusSeed(l));
     }
 
-    // ── 13. Anything else → FailedAction ──────────────────────────────────
     debugPrint('[ActionEngine] solo: no keyword matched for "$label"');
     return const FailedAction(
       "hm, that one's not wired up yet. tell me what you were going for.",
@@ -510,6 +560,10 @@ abstract final class ActionEngine {
   // ── Discover helpers ───────────────────────────────────────────────────────
 
   static String _mapsQueryForDiscover(String l) {
+    if (l.contains('fancy') || l.contains('fine dining') ||
+        l.contains('main character')) {
+      return 'fine dining near me';
+    }
     if (l.contains('gym') || l.contains('fitness') || l.contains('class')) {
       return 'gym near me';
     }
@@ -518,7 +572,7 @@ abstract final class ActionEngine {
       return 'hiking trails near me';
     }
     if (l.contains('hair') || l.contains('nails') || l.contains('salon')) {
-      return 'beauty salon near me';
+      return 'nail salon near me';
     }
     if (l.contains('dinner') || l.contains('brunch') || l.contains('lunch') ||
         l.contains('restaurant')) {
