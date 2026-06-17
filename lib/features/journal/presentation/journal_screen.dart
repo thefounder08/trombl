@@ -1,23 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/trombl_theme.dart';
+import '../../vibe/providers/session_providers.dart';
 
-class JournalScreen extends StatefulWidget {
+// TODO: add a "ur thoughts" section to the profile screen that lists past
+// journal entries — query memory_nodes where type='emotion', newest first.
+class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
 
   @override
-  State<JournalScreen> createState() => _JournalScreenState();
+  ConsumerState<JournalScreen> createState() => _JournalScreenState();
 }
 
-class _JournalScreenState extends State<JournalScreen> {
+class _JournalScreenState extends ConsumerState<JournalScreen> {
   final _controller = TextEditingController();
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _onDone(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    final text = _controller.text.trim();
+
+    if (text.isEmpty) {
+      context.go('/home');
+      return;
+    }
+
+    await ref.read(sessionRepositoryProvider).saveMemoryNode(
+          type: 'emotion',
+          content: text,
+          relevanceScore: 1.0,
+          touchLastAccessed: true,
+        );
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "trom's got that. go do something now.",
+          style: TextStyle(fontFamily: 'DMSans'),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    context.go('/home');
   }
 
   @override
@@ -76,10 +109,7 @@ class _JournalScreenState extends State<JournalScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 24, top: 12),
                 child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-                    context.go('/home');
-                  },
+                  onTap: () => _onDone(context),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 16),

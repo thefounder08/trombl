@@ -173,6 +173,7 @@ class SessionRepository {
     required String type,
     required String content,
     double relevanceScore = 0.7,
+    bool touchLastAccessed = false,
   }) async {
     try {
       await _client.from('memory_nodes').insert({
@@ -180,6 +181,8 @@ class SessionRepository {
         'type': type,
         'content': content,
         'relevance_score': relevanceScore,
+        if (touchLastAccessed)
+          'last_accessed': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (_) {}
   }
