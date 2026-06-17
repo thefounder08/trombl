@@ -204,7 +204,13 @@ class SessionRepository {
       final content = rows.first['content'] as String;
       final colonIdx = content.indexOf(':');
       if (colonIdx == -1) return null;
-      return content.substring(colonIdx + 1).trim();
+      final value = content.substring(colonIdx + 1).trim();
+      // Guard against junk values that were mistakenly stored instead of
+      // the real answer (e.g. "saved") — treat as not-yet-set.
+      if (value.isEmpty || const {'saved', 'null', 'none', 'n/a'}.contains(value.toLowerCase())) {
+        return null;
+      }
+      return value;
     } catch (_) {
       return null;
     }

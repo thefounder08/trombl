@@ -42,116 +42,261 @@ final _tromsReadDataProvider = FutureProvider.autoDispose<TromsReadData>((ref) a
   );
 });
 
-void _showEditProfile(BuildContext context, WidgetRef ref, Profile? profile) {
-  final nameCtrl = TextEditingController(text: profile?.displayName ?? '');
-  final handleCtrl = TextEditingController(
-      text: profile?.handle != null ? '@${profile!.handle}' : '');
-  final cityCtrl = TextEditingController(text: profile?.city ?? '');
-
+void _showSettingsSheet(BuildContext context, WidgetRef ref, Profile? profile) {
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => StatefulBuilder(
-      builder: (ctx, setState) => Padding(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: TromblColors.bg,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('ur profile',
-                  style: TextStyle(
-                      fontFamily: TromblText.serif,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: TromblColors.text)),
-              const SizedBox(height: 18),
-              _ProfileField(ctrl: nameCtrl, hint: 'ur name', label: 'NAME'),
-              const SizedBox(height: 10),
-              _ProfileField(
-                  ctrl: handleCtrl, hint: '@handle', label: 'HANDLE'),
-              const SizedBox(height: 10),
-              _ProfileField(ctrl: cityCtrl, hint: 'ur city', label: 'CITY'),
-              const SizedBox(height: 18),
-              GestureDetector(
-                onTap: () async {
-                  final name = nameCtrl.text.trim();
-                  final rawHandle = handleCtrl.text.trim();
-                  final handle = rawHandle.startsWith('@')
-                      ? rawHandle.substring(1)
-                      : rawHandle;
-                  final city = cityCtrl.text.trim();
-                  await ref.read(sessionRepositoryProvider).updateProfile(
-                        displayName: name.isNotEmpty ? name : null,
-                        handle: handle.isNotEmpty ? handle : null,
-                        city: city.isNotEmpty ? city : null,
-                      );
-                  ref.invalidate(_currentProfileProvider);
-                  if (context.mounted) Navigator.of(context).pop();
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  decoration: BoxDecoration(
-                    color: TromblColors.jomo,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Text('save →',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: Color(0xFF0B0B0D),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
+    builder: (_) => _SettingsSheet(profile: profile),
   );
 }
 
-class _ProfileField extends StatelessWidget {
-  const _ProfileField(
-      {required this.ctrl, required this.hint, required this.label});
-  final TextEditingController ctrl;
-  final String hint;
+const _monthNames = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+];
+
+String? _sinceLabel(DateTime? createdAt) {
+  if (createdAt == null) return null;
+  return 'using trombl since ${_monthNames[createdAt.month - 1]} ${createdAt.year}';
+}
+
+class _SettingsSheet extends ConsumerStatefulWidget {
+  const _SettingsSheet({required this.profile});
+  final Profile? profile;
+
+  @override
+  ConsumerState<_SettingsSheet> createState() => _SettingsSheetState();
+}
+
+class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
+  String? _editing; // 'name' | 'city' | null
+  late final _nameCtrl =
+      TextEditingController(text: widget.profile?.displayName ?? '');
+  late final _cityCtrl =
+      TextEditingController(text: widget.profile?.city ?? '');
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _cityCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save(String field) async {
+    if (field == 'name') {
+      await ref
+          .read(sessionRepositoryProvider)
+          .updateProfile(displayName: _nameCtrl.text.trim());
+    } else {
+      await ref
+          .read(sessionRepositoryProvider)
+          .updateProfile(city: _cityCtrl.text.trim());
+    }
+    ref.invalidate(_currentProfileProvider);
+    if (mounted) setState(() => _editing = null);
+  }
+
+  Future<void> _signOut() async {
+    await ref.read(supabaseProvider).auth.signOut();
+    ref.read(activeSessionProvider.notifier).clear();
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: TromblColors.bg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SettingsRow(
+              label: 'change name',
+              editing: _editing == 'name',
+              controller: _nameCtrl,
+              onTap: () =>
+                  setState(() => _editing = _editing == 'name' ? null : 'name'),
+              onSave: () => _save('name'),
+            ),
+            const SizedBox(height: 16),
+            _SettingsRow(
+              label: 'change city',
+              editing: _editing == 'city',
+              controller: _cityCtrl,
+              onTap: () =>
+                  setState(() => _editing = _editing == 'city' ? null : 'city'),
+              onSave: () => _save('city'),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: _signOut,
+              child: const Text(
+                'sign out',
+                style: TextStyle(
+                  color: Color(0xFFE05252),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    required this.label,
+    required this.editing,
+    required this.controller,
+    required this.onTap,
+    required this.onSave,
+  });
   final String label;
+  final bool editing;
+  final TextEditingController controller;
+  final VoidCallback onTap;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                color: TromblColors.textMuted,
-                fontSize: 9,
-                letterSpacing: 1.5,
-                fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
-        TextField(
-          controller: ctrl,
-          style: const TextStyle(color: TromblColors.text, fontSize: 15),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: TromblColors.textMuted),
-            filled: true,
-            fillColor: TromblColors.card,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+        GestureDetector(
+          onTap: onTap,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      color: TromblColors.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+              Text(editing ? '↑' : '→',
+                  style: const TextStyle(color: TromblColors.textMuted)),
+            ],
+          ),
+        ),
+        if (editing) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  style: const TextStyle(color: TromblColors.text, fontSize: 14),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: TromblColors.card,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: onSave,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: TromblColors.jomo,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.check,
+                      color: Color(0xFF0B0B0D), size: 18),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _IdentityRow extends StatelessWidget {
+  const _IdentityRow({required this.profile, required this.onSettings});
+  final Profile? profile;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final rawName = profile?.displayName?.trim();
+    final name = (rawName != null && rawName.isNotEmpty) ? rawName : 'hey u';
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final since = _sinceLabel(profile?.createdAt);
+
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [TromblColors.fomo, Color(0xFFD99A00)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            initial,
+            style: const TextStyle(
+              color: Color(0xFF090909),
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(
+                  color: TromblColors.text,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+              if (since != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  since,
+                  style: const TextStyle(
+                    color: TromblColors.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        GestureDetector(
+          onTap: onSettings,
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Text('⚙️', style: TextStyle(fontSize: 18)),
           ),
         ),
       ],
@@ -187,30 +332,25 @@ class ProfileScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // ── Nav row ────────────────────────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        GestureDetector(
-                          onTap: () => context.go('/home'),
-                          child: const Text('← home',
-                              style: TextStyle(color: TromblColors.textSub)),
-                        ),
-                        ref.watch(_currentProfileProvider).maybeWhen(
-                              data: (profile) => GestureDetector(
-                                onTap: () =>
-                                    _showEditProfile(context, ref, profile),
-                                child: const Text('edit →',
-                                    style: TextStyle(
-                                        color: TromblColors.textMuted,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600)),
-                              ),
-                              orElse: () => const SizedBox.shrink(),
-                            ),
-                      ],
+                    GestureDetector(
+                      onTap: () => context.go('/home'),
+                      child: const Text('← home',
+                          style: TextStyle(color: TromblColors.textSub)),
                     ),
 
                     const SizedBox(height: 18),
+
+                    // ── Identity row ──────────────────────────────────────
+                    ref.watch(_currentProfileProvider).maybeWhen(
+                          data: (profile) => _IdentityRow(
+                            profile: profile,
+                            onSettings: () =>
+                                _showSettingsSheet(context, ref, profile),
+                          ),
+                          orElse: () => const SizedBox.shrink(),
+                        ),
+
+                    const SizedBox(height: 22),
 
                     const Text(
                       "trom's read on u",

@@ -91,10 +91,15 @@ class PlanRepository {
             .order('created_at', ascending: false);
       }
 
-      return [
+      final all = [
         ...owned.map((r) => Plan.fromJson(Map<String, dynamic>.from(r as Map))),
         ...joined.map((r) => Plan.fromJson(Map<String, dynamic>.from(r as Map))),
       ];
+
+      // A plan can surface more than once here (e.g. duplicate plan_member
+      // rows) — keep one row per plan id.
+      final seen = <String>{};
+      return all.where((p) => seen.add(p.id)).toList();
     } catch (_) {
       return [];
     }

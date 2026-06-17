@@ -21,6 +21,7 @@ class Profile with _$Profile {
     @JsonKey(name: 'schedule_type') String? scheduleType,
     @JsonKey(name: 'weekend_pref') String? weekendPref,
     @JsonKey(name: 'wants_more') @Default(<String>[]) List<String> wantsMore,
+    @JsonKey(name: 'created_at') DateTime? createdAt,
   }) = _Profile;
 
   factory Profile.fromJson(Map<String, dynamic> json) =>

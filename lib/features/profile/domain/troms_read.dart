@@ -26,8 +26,14 @@ String _dayLabelFor(DateTime d) {
   return _weekdayName(d);
 }
 
+/// System words that sometimes end up stored as the value by mistake
+/// (e.g. a confirmation word instead of the actual answer) — never
+/// meaningful enough to show the user.
+const _junkPreferenceValues = {'saved', 'null', 'none', 'n/a'};
+
 /// "usual_place: zomato" → key: usual_place, value: zomato.
-/// Returns null for non-preference nodes or malformed/empty content.
+/// Returns null for non-preference nodes, malformed/empty content, or a
+/// junk value like "saved" that isn't a real answer.
 MapEntry<String, String>? parsePreference(MemoryNode node) {
   if (node.type != 'preference') return null;
   final parts = node.content.split(': ');
@@ -35,6 +41,7 @@ MapEntry<String, String>? parsePreference(MemoryNode node) {
   final key = parts[0].trim();
   final value = parts.sublist(1).join(': ').trim();
   if (key.isEmpty || value.isEmpty) return null;
+  if (_junkPreferenceValues.contains(value.toLowerCase())) return null;
   return MapEntry(key, value);
 }
 
