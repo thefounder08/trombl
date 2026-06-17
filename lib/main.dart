@@ -39,20 +39,25 @@ Future<void> _boot() async {
     anonKey: AppConfig.supabaseAnonKey,
   );
 
-  // Firebase init — silently skipped if config files are absent.
+  // Firebase init — mobile only. There's no web Firebase config
+  // (firebase_options.dart / JS SDK setup) yet, and firebase_crashlytics
+  // doesn't support web at all, so Firebase.initializeApp() throws inside
+  // the JS interop layer on web in a way that escapes this try/catch.
   // CrashService + AnalyticsService gracefully no-op until this succeeds.
-  try {
-    await Firebase.initializeApp();
-    CrashService.init();
-    AnalyticsService.init();
-  } catch (e) {
-    debugPrint('[Firebase] init skipped (no config files yet): $e');
-  }
+  if (!kIsWeb) {
+    try {
+      await Firebase.initializeApp();
+      CrashService.init();
+      AnalyticsService.init();
+    } catch (e) {
+      debugPrint('[Firebase] init skipped (no config files yet): $e');
+    }
 
-  try {
-    await NotificationService().init();
-  } catch (e) {
-    debugPrint('[Notification] init skipped: $e');
+    try {
+      await NotificationService().init();
+    } catch (e) {
+      debugPrint('[Notification] init skipped: $e');
+    }
   }
 
   // Load any pending plan-join intent from SharedPreferences so it survives
