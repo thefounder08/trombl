@@ -120,6 +120,7 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
           children: [
             _SettingsRow(
               label: 'change name',
+              hint: 'what should trom call u?',
               editing: _editing == 'name',
               controller: _nameCtrl,
               onTap: () =>
@@ -129,6 +130,7 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
             const SizedBox(height: 16),
             _SettingsRow(
               label: 'change city',
+              hint: 'ur city',
               editing: _editing == 'city',
               controller: _cityCtrl,
               onTap: () =>
@@ -157,12 +159,14 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
 class _SettingsRow extends StatelessWidget {
   const _SettingsRow({
     required this.label,
+    required this.hint,
     required this.editing,
     required this.controller,
     required this.onTap,
     required this.onSave,
   });
   final String label;
+  final String hint;
   final bool editing;
   final TextEditingController controller;
   final VoidCallback onTap;
@@ -198,6 +202,8 @@ class _SettingsRow extends StatelessWidget {
                   autofocus: true,
                   style: const TextStyle(color: TromblColors.text, fontSize: 14),
                   decoration: InputDecoration(
+                    hintText: hint,
+                    hintStyle: const TextStyle(color: TromblColors.textMuted),
                     filled: true,
                     fillColor: TromblColors.card,
                     border: OutlineInputBorder(
