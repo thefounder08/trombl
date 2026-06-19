@@ -36,7 +36,7 @@ Future<void> _boot() async {
 
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
-    anonKey: AppConfig.supabaseAnonKey,
+    publishableKey: AppConfig.supabaseAnonKey,
   );
 
   // Firebase init — mobile only. There's no web Firebase config

@@ -56,7 +56,7 @@ class NotificationService {
 
     try {
       await _localPlugin.initialize(
-        const InitializationSettings(
+        settings: const InitializationSettings(
           android: androidSettings,
           iOS: darwinSettings,
         ),
@@ -165,10 +165,10 @@ class NotificationService {
     final n = msg.notification;
     if (n == null) return;
     await _localPlugin.show(
-      msg.hashCode,
-      n.title,
-      n.body,
-      const NotificationDetails(
+      id: msg.hashCode,
+      title: n.title,
+      body: n.body,
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId, _channelName,
           channelDescription: _channelDesc,
@@ -196,8 +196,11 @@ class NotificationService {
       scheduled = scheduled.add(const Duration(days: 1));
     }
     await _localPlugin.zonedSchedule(
-      id, title, body, scheduled,
-      const NotificationDetails(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: scheduled,
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId, _channelName,
           channelDescription: _channelDesc,
@@ -211,8 +214,6 @@ class NotificationService {
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }

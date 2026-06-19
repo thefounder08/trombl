@@ -242,7 +242,8 @@ class _ShareSection extends StatelessWidget {
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.mediumImpact();
-                  Share.share(shareText, subject: "join my trombl plan");
+                  SharePlus.instance.share(
+                      ShareParams(text: shareText, subject: "join my trombl plan"));
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),

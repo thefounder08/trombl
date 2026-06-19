@@ -402,7 +402,7 @@ class ProfileScreen extends ConsumerWidget {
                         );
                         final didPicks = dedupedAcceptedPicks(d.picks);
                         final plans = dedupedPlans(
-                            myPlans.valueOrNull ?? const <Plan>[]);
+                            myPlans.value ?? const <Plan>[]);
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

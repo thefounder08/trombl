@@ -4,24 +4,24 @@ publish_to: "none"
 version: 0.1.0+1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.8.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_web_plugins:
     sdk: flutter
-  flutter_riverpod: ^2.5.0
-  hooks_riverpod: ^2.5.0
-  flutter_hooks: ^0.20.5
-  go_router: ^14.0.0
-  freezed_annotation: ^2.4.1
+  flutter_riverpod: ^3.3.2
+  hooks_riverpod: ^3.3.2
+  flutter_hooks: ^0.21.3+1
+  go_router: ^17.3.0
+  freezed_annotation: ^3.1.0
   json_annotation: ^4.9.0
   supabase_flutter: ^2.5.0
   url_launcher: ^6.3.0
-  share_plus: ^10.0.0
-  flutter_local_notifications: ^17.2.4
-  timezone: ^0.9.4
+  share_plus: ^12.0.2
+  flutter_local_notifications: ^22.0.1
+  timezone: ^0.11.0
   firebase_messaging: ^16.2.2
   firebase_core: ^4.9.0
   firebase_analytics: ^12.4.1
@@ -33,10 +33,20 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
   build_runner: ^2.4.0
-  freezed: ^2.5.0
+  freezed: ^3.2.5
   json_serializable: ^6.8.0
+
+# device_info_plus >=12.0.0 references NSProcessInfo.isiOSAppOnVision, which
+# only exists in the iOS 26 SDK. Pin to the last version compiled against
+# older SDKs until Xcode here is upgraded past 16.2. share_plus and
+# package_info_plus above are pinned to versions using win32 ^5.x so the
+# whole graph resolves to one win32 major version without an override
+# (forcing win32 down via override previously broke package_info_plus's
+# Windows FFI code, which still gets compiled on every dart:io platform).
+dependency_overrides:
+  device_info_plus: ^11.4.0
 
 flutter:
   uses-material-design: true

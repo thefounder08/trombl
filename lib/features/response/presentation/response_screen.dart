@@ -653,10 +653,10 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
         onShare: () {
           HapticFeedback.lightImpact();
           final vibeEmoji = args.vibe == 'fomo' ? '⚡' : '🛌';
-          Share.share(
-            '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
+          SharePlus.instance.share(ShareParams(
+            text: '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
             subject: 'trombl pick',
-          );
+          ));
         },
         onPickElse: () => context.go('/home'),
       );
@@ -729,10 +729,10 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                 onTap: () {
                   HapticFeedback.lightImpact();
                   final vibeEmoji = args.vibe == 'fomo' ? '⚡' : '🛌';
-                  Share.share(
-                    '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
+                  SharePlus.instance.share(ShareParams(
+                    text: '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
                     subject: 'trombl pick',
-                  );
+                  ));
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),

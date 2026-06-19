@@ -62,7 +62,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
 
     // Redirect to onboarding if the user hasn't completed it yet.
     ref.listen(onboardingCompletedProvider, (_, next) {
-      if (next.valueOrNull == false && mounted) {
+      if (next.value == false && mounted) {
         context.go('/onboarding');
       }
     });
@@ -77,7 +77,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
     }
 
     // Onboarding not complete — listener above will redirect; show loading meanwhile.
-    if (onboardingStatus.valueOrNull == false) {
+    if (onboardingStatus.value == false) {
       return const Scaffold(
         backgroundColor: TromblColors.bg,
         body: _TromLoadingScreen(),

@@ -553,10 +553,11 @@ class _ShareCodeRow extends StatelessWidget {
             GestureDetector(
               onTap: () {
                 HapticFeedback.mediumImpact();
-                Share.share(
-                  'join my trombl plan!\n${AppConfig.shareBaseUrl}/p/$token',
+                SharePlus.instance.share(ShareParams(
+                  text:
+                      'join my trombl plan!\n${AppConfig.shareBaseUrl}/p/$token',
                   subject: 'join my plan on trombl',
-                );
+                ));
               },
               child: Container(
                 padding: const EdgeInsets.all(14),

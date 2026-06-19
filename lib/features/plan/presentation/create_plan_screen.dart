@@ -192,10 +192,11 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
           _planId   = data.plan.id;
         });
         // Open share sheet immediately with human title + trombl link.
-        await Share.share(
-          "trom says we should do this.\n\n${data.plan.title}\n\n${data.shareUrl}",
+        await SharePlus.instance.share(ShareParams(
+          text:
+              "trom says we should do this.\n\n${data.plan.title}\n\n${data.shareUrl}",
           subject: data.plan.title,
-        );
+        ));
       case Failure(:final error):
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -361,9 +362,10 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
                   label: 'share again 🔗',
                   onTap: () async {
                     HapticFeedback.lightImpact();
-                    await Share.share(
-                      "trom says we should do this.\n\n${_titleCtrl.text.trim()}\n\n$_shareUrl",
-                    );
+                    await SharePlus.instance.share(ShareParams(
+                      text:
+                          "trom says we should do this.\n\n${_titleCtrl.text.trim()}\n\n$_shareUrl",
+                    ));
                   },
                 ),
                 const SizedBox(height: 10),

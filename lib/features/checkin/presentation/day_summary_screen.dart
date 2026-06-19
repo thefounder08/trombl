@@ -120,7 +120,7 @@ class _StatsRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final streak = ref.watch(streakProvider).valueOrNull ?? 0;
+    final streak = ref.watch(streakProvider).value ?? 0;
     return Row(
       children: [
         _Stat(value: '$done', label: 'done', accent: accent),

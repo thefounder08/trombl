@@ -80,9 +80,12 @@ final planInCountProvider =
 
 // ── RSVP notifier ────────────────────────────────────────────────────────────
 
-class RsvpNotifier extends AutoDisposeFamilyNotifier<AsyncValue<String?>, String> {
+class RsvpNotifier extends Notifier<AsyncValue<String?>> {
+  RsvpNotifier(this.arg);
+  final String arg;
+
   @override
-  AsyncValue<String?> build(String arg) => const AsyncValue.data(null);
+  AsyncValue<String?> build() => const AsyncValue.data(null);
 
   Future<void> update(String status) async {
     state = const AsyncValue.loading();
@@ -103,7 +106,7 @@ final rsvpProvider =
 
 // ── Cancel plan (owner only) ─────────────────────────────────────────────────
 
-class CancelPlanNotifier extends AutoDisposeNotifier<AsyncValue<void>> {
+class CancelPlanNotifier extends Notifier<AsyncValue<void>> {
   @override
   AsyncValue<void> build() => const AsyncValue.data(null);
 

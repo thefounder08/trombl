@@ -8,7 +8,7 @@ part 'models.g.dart';
 
 /// Mirrors public.profiles
 @freezed
-class Profile with _$Profile {
+abstract class Profile with _$Profile {
   const factory Profile({
     required String id,
     @JsonKey(name: 'display_name') String? displayName,
@@ -30,7 +30,7 @@ class Profile with _$Profile {
 
 /// Mirrors public.sessions
 @freezed
-class Session with _$Session {
+abstract class Session with _$Session {
   const factory Session({
     required String id,
     @JsonKey(name: 'user_id') required String userId,
@@ -46,7 +46,7 @@ class Session with _$Session {
 
 /// Mirrors public.picks
 @freezed
-class Pick with _$Pick {
+abstract class Pick with _$Pick {
   const factory Pick({
     required String id,
     @JsonKey(name: 'session_id') required String sessionId,
@@ -63,7 +63,7 @@ class Pick with _$Pick {
 
 /// Mirrors public.plans
 @freezed
-class Plan with _$Plan {
+abstract class Plan with _$Plan {
   const factory Plan({
     required String id,
     @JsonKey(name: 'owner_id') required String ownerId,
@@ -81,7 +81,7 @@ class Plan with _$Plan {
 
 /// Mirrors public.plan_members
 @freezed
-class PlanMember with _$PlanMember {
+abstract class PlanMember with _$PlanMember {
   const factory PlanMember({
     required String id,
     @JsonKey(name: 'plan_id') required String planId,
@@ -96,7 +96,7 @@ class PlanMember with _$PlanMember {
 
 /// Mirrors public.memory_nodes — trom's observations about you.
 @freezed
-class MemoryNode with _$MemoryNode {
+abstract class MemoryNode with _$MemoryNode {
   const factory MemoryNode({
     required String id,
     @JsonKey(name: 'user_id') required String userId,

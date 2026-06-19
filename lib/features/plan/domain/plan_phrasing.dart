@@ -1,5 +1,3 @@
-library plan_phrasing;
-
 // Shared label → human invitation copy.
 // Also contains formatStartTime() used by both plan screens.
 

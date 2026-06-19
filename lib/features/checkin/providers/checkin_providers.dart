@@ -13,7 +13,7 @@ final checkinPicksProvider =
     AsyncNotifierProvider.autoDispose<CheckinNotifier, List<Pick>>(
         CheckinNotifier.new);
 
-class CheckinNotifier extends AutoDisposeAsyncNotifier<List<Pick>> {
+class CheckinNotifier extends AsyncNotifier<List<Pick>> {
   @override
   Future<List<Pick>> build() async {
     final session = ref.watch(activeSessionProvider);
@@ -36,7 +36,7 @@ class CheckinNotifier extends AutoDisposeAsyncNotifier<List<Pick>> {
     final session = ref.read(activeSessionProvider);
     if (session == null) return;
 
-    final picks = state.valueOrNull ?? [];
+    final picks = state.value ?? [];
     final doneLabels =
         picks.where((p) => p.done).map((p) => p.label).toList();
 
