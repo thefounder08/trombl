@@ -113,14 +113,39 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
           color: TromblColors.bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SettingsRow(
-              label: 'change name',
-              hint: 'what should trom call u?',
+            // Drag handle
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: Text(
+                'what should trom know about u?',
+                style: TextStyle(
+                  color: TromblColors.textMuted,
+                  fontSize: 13,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            _SettingsField(
+              fieldLabel: 'WHAT TROM CALLS U',
+              value: widget.profile?.displayName,
+              placeholder: 'tap to add',
+              hint: "what should trom call u?",
               editing: _editing == 'name',
               controller: _nameCtrl,
               onTap: () =>
@@ -128,8 +153,10 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
               onSave: () => _save('name'),
             ),
             const SizedBox(height: 16),
-            _SettingsRow(
-              label: 'change city',
+            _SettingsField(
+              fieldLabel: 'WHERE U ARE',
+              value: widget.profile?.city,
+              placeholder: 'tap to add',
               hint: 'ur city',
               editing: _editing == 'city',
               controller: _cityCtrl,
@@ -137,7 +164,7 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
                   setState(() => _editing = _editing == 'city' ? null : 'city'),
               onSave: () => _save('city'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             GestureDetector(
               onTap: _signOut,
               child: const Text(
@@ -156,16 +183,22 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
   }
 }
 
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({
-    required this.label,
+/// Tappable field row — collapses to a value display, expands inline into a
+/// text field on tap. No separate screen/dialog.
+class _SettingsField extends StatelessWidget {
+  const _SettingsField({
+    required this.fieldLabel,
+    required this.value,
+    required this.placeholder,
     required this.hint,
     required this.editing,
     required this.controller,
     required this.onTap,
     required this.onSave,
   });
-  final String label;
+  final String fieldLabel;
+  final String? value;
+  final String placeholder;
   final String hint;
   final bool editing;
   final TextEditingController controller;
@@ -174,32 +207,30 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final trimmed = value?.trim();
+    final hasValue = trimmed != null && trimmed.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      color: TromblColors.text,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600)),
-              Text(editing ? '↑' : '→',
-                  style: const TextStyle(color: TromblColors.textMuted)),
-            ],
+        Text(
+          fieldLabel,
+          style: const TextStyle(
+            color: TromblColors.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
           ),
         ),
-        if (editing) ...[
-          const SizedBox(height: 8),
+        const SizedBox(height: 8),
+        if (editing)
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: controller,
                   autofocus: true,
+                  onSubmitted: (_) => onSave(),
                   style: const TextStyle(color: TromblColors.text, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: hint,
@@ -229,8 +260,35 @@ class _SettingsRow extends StatelessWidget {
                 ),
               ),
             ],
+          )
+        else
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: TromblColors.card,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    hasValue ? trimmed : placeholder,
+                    style: TextStyle(
+                      color: hasValue
+                          ? TromblColors.text
+                          : TromblColors.textMuted,
+                      fontSize: 14,
+                      fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                  const Text('→', style: TextStyle(color: TromblColors.textMuted)),
+                ],
+              ),
+            ),
           ),
-        ],
       ],
     );
   }

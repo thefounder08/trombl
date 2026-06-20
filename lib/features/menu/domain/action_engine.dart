@@ -216,8 +216,10 @@ abstract final class ActionEngine {
 
     // f1d — club / dance floor → WhatsApp draft + Maps secondary
     if (l.contains('club') || l.contains('dance floor')) {
+      final wa = _whatsapp("club tonight, who’s actually coming?");
       return DualUrlAction(
-        primaryUrl: 'https://wa.me/?text=${Uri.encodeComponent("club tonight, who’s actually coming?")}',
+        primaryUrl: wa.url,
+        primaryFallbackUrl: wa.fallbackUrl,
         secondaryLabel: 'find one →',
         secondaryUrl: 'https://www.google.com/maps/search/nightclub+near+me',
       );
@@ -258,15 +260,18 @@ abstract final class ActionEngine {
       String optionId, String vibe, String? tromMessage) {
     // f2b — reach out to that one person: no pre-filled text, just open contacts
     if (optionId == 'f2b') {
-      return const ExternalUrlAction('https://wa.me/');
+      final wa = _whatsapp(null);
+      return ExternalUrlAction(wa.url, fallbackUrl: wa.fallbackUrl);
     }
 
     // f1c — bar hop with the crew: specific draft + secondary Maps button
     if (optionId == 'f1c') {
       final msg = tromMessage ??
           "bar hop tonight, who's joining? first one to reply picks the first spot.";
+      final wa = _whatsapp(msg);
       return DualUrlAction(
-        primaryUrl: 'https://wa.me/?text=${Uri.encodeComponent(msg)}',
+        primaryUrl: wa.url,
+        primaryFallbackUrl: wa.fallbackUrl,
         secondaryLabel: 'find a bar →',
         secondaryUrl: 'https://www.google.com/maps/search/bars+near+me',
       );
@@ -274,9 +279,21 @@ abstract final class ActionEngine {
 
     // All other squad options — WhatsApp with the drafted message
     final msg = tromMessage ?? TromblMenu.squadMessage(vibe);
-    return ExternalUrlAction(
-      'https://wa.me/?text=${Uri.encodeComponent(msg)}',
-    );
+    final wa = _whatsapp(msg);
+    return ExternalUrlAction(wa.url, fallbackUrl: wa.fallbackUrl);
+  }
+
+  /// WhatsApp launch URLs. [text] null → bare contact picker, no draft.
+  ///
+  /// `whatsapp://send` is tried first — it's the app's native scheme and
+  /// resolves directly on Android/iOS when WhatsApp is installed.
+  /// `https://wa.me/` is the fallback: it depends on Android App Link
+  /// verification to route into the app, which isn't always reliable, but it
+  /// degrades correctly to WhatsApp Web on browsers/desktop where the native
+  /// scheme doesn't exist (e.g. the web build).
+  static ({String url, String fallbackUrl}) _whatsapp(String? text) {
+    final q = text != null ? '?text=${Uri.encodeComponent(text)}' : '';
+    return (url: 'whatsapp://send$q', fallbackUrl: 'https://wa.me/$q');
   }
 
   static ActionResult _resolveOrderIn(String label, String? city) {

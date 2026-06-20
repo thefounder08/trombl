@@ -12,6 +12,7 @@ import '../../../core/services/weather_service.dart';
 import '../../../shared/result.dart';
 import '../../../core/observability/analytics_service.dart';
 import '../../../core/theme/trombl_theme.dart';
+import '../../chat/presentation/chat_args.dart';
 import '../../menu/domain/action_engine.dart';
 import '../../menu/domain/menu_models.dart';
 import '../../menu/presentation/action_launcher.dart';
@@ -248,12 +249,34 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
           fallbackUrl: primaryFallbackUrl,
           context: context,
         );
-      case MultiButtonAction():
-      case MemoryQueryAction():
-      case ChatSeedAction():
+      case MultiButtonAction(:final buttons):
+        // No inline button picker in this quick-decide flow — just launch
+        // the first option (e.g. Netflix over YouTube for the binge pick).
+        await ActionLauncher.launchExternal(
+          buttons.first.url,
+          context: context,
+        );
+      case MemoryQueryAction(:final memoryKey, :final urlTemplate):
+        final saved =
+            await ref.read(sessionRepositoryProvider).readPreference(memoryKey);
+        if (!mounted) return;
+        final url = (saved != null && saved.isNotEmpty)
+            ? urlTemplate.replaceAll('{value}', Uri.encodeComponent(saved))
+            // No saved preference yet and no inline prompt UI here — open
+            // the app's home rather than a broken {value}-less query.
+            : Uri.parse(urlTemplate).replace(path: '/', query: '').toString();
+        await ActionLauncher.launchExternal(url, context: context);
+      case ChatSeedAction(:final seedText):
+        if (mounted) {
+          context.push('/chat', extra: ChatArgs(seedText: seedText));
+        }
+        return;
       case ComingSoonAction():
-      case FailedAction():
-        break; // fall through to go home
+        ActionLauncher.showComingSoon(context);
+        return; // let them reroll instead of bouncing home
+      case FailedAction(:final message):
+        ActionLauncher.showFailed(context, message);
+        return; // let them reroll instead of bouncing home
     }
     if (mounted) context.go('/home');
   }
