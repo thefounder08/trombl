@@ -56,8 +56,8 @@ String planPhrasing(String rawLabel) {
     'look up outdoor things happening today':    "something outdoors today",
     'hike or trail':                             "hiking today",
     // jomo: rot
-    'binge netflix or youtube':                  "netflix night",
-    'rewatch ur comfort show':                   "comfort show night",
+    'watch something new':                       "netflix night",
+    'endless videos':                            "youtube rabbit hole",
     'sleep in or nap aggressively':              "aggressive nap session",
     'do absolutely nothing':                     "doing absolutely nothing",
     // food

@@ -332,23 +332,6 @@ abstract final class ActionEngine {
   static ActionResult _resolveRest(String label) {
     final l = label.toLowerCase();
 
-    // j1a — binge netflix or youtube: two simultaneous buttons
-    if (l.contains('netflix') || l.contains('binge netflix')) {
-      return const MultiButtonAction([
-        (label: 'netflix →', url: 'https://www.netflix.com'),
-        (label: 'youtube →', url: 'https://www.youtube.com'),
-      ]);
-    }
-
-    // j1b — rewatch ur comfort show: memory-aware Netflix search
-    if (l.contains('rewatch') || l.contains('comfort show')) {
-      return const MemoryQueryAction(
-        memoryKey: 'comfort_show',
-        urlTemplate: 'https://www.netflix.com/search?q={value}',
-        promptText: "what's ur comfort show?",
-      );
-    }
-
     // j2d (now rest) — make a fancy coffee: three YouTube recipe options
     if (l.contains('coffee')) {
       return const MultiButtonAction([
