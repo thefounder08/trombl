@@ -106,8 +106,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/response',
+        // `extra` is in-memory only — lost on hot restart, web URL refresh,
+        // or Android process death. Bounce home instead of crashing on the
+        // null-check when the router tries to rebuild this page from a
+        // restored route with no surviving args.
+        redirect: (_, s) => s.extra is ResponseArgs ? null : '/home',
         pageBuilder: (_, s) =>
-            _page(s.pageKey, ResponseScreen(args: s.extra! as ResponseArgs)),
+            _page(s.pageKey, ResponseScreen(args: s.extra as ResponseArgs)),
       ),
       GoRoute(
         path: '/home',
@@ -128,14 +133,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       // /summary — hardcoded reactive verdict (spec Commit 3)
       GoRoute(
         path: '/summary',
+        redirect: (_, s) => s.extra is SummaryArgs ? null : '/home',
         pageBuilder: (_, s) =>
-            _page(s.pageKey, SummaryScreen(args: s.extra! as SummaryArgs)),
+            _page(s.pageKey, SummaryScreen(args: s.extra as SummaryArgs)),
       ),
       // /day-summary — LLM-generated end-of-day narrative (legacy, still reachable)
       GoRoute(
         path: '/day-summary',
+        redirect: (_, s) => s.extra is DaySummaryScreenArgs ? null : '/home',
         pageBuilder: (_, s) => _page(
-            s.pageKey, DaySummaryScreen(args: s.extra! as DaySummaryScreenArgs)),
+            s.pageKey, DaySummaryScreen(args: s.extra as DaySummaryScreenArgs)),
       ),
       GoRoute(
         path: '/plan/:id',
@@ -144,8 +151,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/create-plan',
+        redirect: (_, s) => s.extra is CreatePlanArgs ? null : '/home',
         pageBuilder: (_, s) =>
-            _page(s.pageKey, CreatePlanScreen(args: s.extra! as CreatePlanArgs)),
+            _page(s.pageKey, CreatePlanScreen(args: s.extra as CreatePlanArgs)),
       ),
       GoRoute(
         path: '/join-plan',
@@ -166,8 +174,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat',
+        redirect: (_, s) => s.extra is ChatArgs ? null : '/home',
         pageBuilder: (_, s) =>
-            _page(s.pageKey, ChatScreen(args: s.extra! as ChatArgs)),
+            _page(s.pageKey, ChatScreen(args: s.extra as ChatArgs)),
       ),
       GoRoute(
         path: '/journal',
