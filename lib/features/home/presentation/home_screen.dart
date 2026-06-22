@@ -11,6 +11,7 @@ import '../../decide/providers/decide_providers.dart';
 import '../../menu/domain/menu_data.dart';
 import '../../menu/domain/menu_models.dart';
 import '../../menu/presentation/widgets/options_sheet.dart';
+import '../../notifications/providers/notification_providers.dart';
 import '../../plans/providers/plan_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/home_providers.dart';
@@ -108,6 +109,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      const _NotificationBell(),
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () => context.push('/profile'),
@@ -217,6 +220,64 @@ class _VibeChip extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Notification bell ────────────────────────────────────────────────────────
+
+class _NotificationBell extends ConsumerWidget {
+  const _NotificationBell();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unreadAsync = ref.watch(unreadNotificationCountProvider);
+    final unread = unreadAsync.maybeWhen(data: (n) => n, orElse: () => 0);
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        context.push('/notifications');
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: TromblColors.card,
+              shape: BoxShape.circle,
+              border: Border.all(color: TromblColors.border),
+            ),
+            child: const Center(
+              child: Text('🔔', style: TextStyle(fontSize: 13)),
+            ),
+          ),
+          if (unread > 0)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 14),
+                decoration: const BoxDecoration(
+                  color: TromblColors.fomo,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  unread > 9 ? '9+' : '$unread',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: TromblColors.bg,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
