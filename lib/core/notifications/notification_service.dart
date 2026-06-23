@@ -47,7 +47,7 @@ class NotificationService {
       tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
     } catch (_) {}
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings('@drawable/ic_stat_notify');
     const darwinSettings  = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -174,7 +174,7 @@ class NotificationService {
           channelDescription: _channelDesc,
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: '@drawable/ic_stat_notify',
           color: Color(0xFFF2B705),
         ),
         iOS: DarwinNotificationDetails(
@@ -206,7 +206,7 @@ class NotificationService {
           channelDescription: _channelDesc,
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: '@drawable/ic_stat_notify',
           color: Color(0xFFF2B705),
         ),
         iOS: DarwinNotificationDetails(

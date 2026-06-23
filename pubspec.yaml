@@ -37,6 +37,7 @@ dev_dependencies:
   build_runner: ^2.4.0
   freezed: ^3.2.5
   json_serializable: ^6.8.0
+  flutter_launcher_icons: ^0.14.3
 
 # device_info_plus >=12.0.0 references NSProcessInfo.isiOSAppOnVision, which
 # only exists in the iOS 26 SDK. Pin to the last version compiled against
@@ -47,6 +48,20 @@ dev_dependencies:
 # Windows FFI code, which still gets compiled on every dart:io platform).
 dependency_overrides:
   device_info_plus: ^11.4.0
+
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon_source.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon_source.png"
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon_source.png"
+    background_color: "#FFFFFF"
+    theme_color: "#090909"
 
 flutter:
   uses-material-design: true

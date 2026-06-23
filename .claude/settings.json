@@ -1,7 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "Bash(flutter analyze *)",
+      "Bash(netlify status *)",
+      "Bash(curl -s https://pub.dev/api/packages/device_info_plus)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s https://pub.dev/api/packages/share_plus)",
+      "Bash(curl -s \"https://pub.dev/api/packages/share_plus/versions/12.0.2\")",
+      "Bash(curl -sL \"https://pub.dev/api/archives/share_plus-12.0.2.tar.gz\" -o /tmp/share_plus_12.tar.gz)",
+      "Bash(mkdir -p /tmp/share_plus_12)",
+      "Bash(tar -xzf /tmp/share_plus_12.tar.gz -C /tmp/share_plus_12)",
+      "Bash(flutter pub *)",
+      "Bash(./gradlew :app:assembleDebug --console=plain)",
+      "Bash(supabase functions *)",
+      "Bash(curl -s -w '\\\\nHTTP_STATUS:%{http_code}\\\\n' -X POST https://stbiwzvaykwhdirwmwku.supabase.co/functions/v1/send-nudge -H 'Content-Type: application/json' -d '{ *)",
+      "mcp__claude_ai_Supabase__get_edge_function"
     ]
   }
 }

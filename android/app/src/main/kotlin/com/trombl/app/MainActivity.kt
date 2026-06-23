@@ -1,4 +1,4 @@
-package com.example.trombl
+package com.trombl.app
 
 import io.flutter.embedding.android.FlutterActivity
 

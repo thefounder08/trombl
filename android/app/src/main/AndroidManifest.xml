@@ -51,6 +51,17 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Default small icon for FCM notifications (white silhouette, transparent
+             background per Android guidelines — see drawable-*/ic_stat_notify.png).
+             flutter_local_notifications also passes this explicitly per-call. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
+        <!-- Status-bar/expanded-notification accent color (matches the fomo gold
+             accent used elsewhere in the app theme). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

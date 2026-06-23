@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "982054646420",
-    "project_id": "trombl",
-    "storage_bucket": "trombl.firebasestorage.app"
+    "project_number": "954903506464",
+    "project_id": "trombl-5cd7b",
+    "storage_bucket": "trombl-5cd7b.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:982054646420:android:1239494693e5c806d0ba81",
+        "mobilesdk_app_id": "1:954903506464:android:b1af7c7260c1c512341645",
         "android_client_info": {
           "package_name": "com.trombl.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAzP-BGc-ccZxh5zKx9xA3xdmpeiHFEHyY"
+          "current_key": "AIzaSyBvoq0qbLNVFWBEjUBzgPdXeE3AoCPF9GA"
         }
       ],
       "services": {
