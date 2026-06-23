@@ -101,6 +101,7 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
 
     switch (result) {
       case Success():
+        ref.read(analyticsRepositoryProvider).trackPlanJoined(status: status);
         // Clear pending intent — join is written.
         ref.read(pendingPlanStatusProvider.notifier).state = null;
         unawaited(PendingJoinService.clear());

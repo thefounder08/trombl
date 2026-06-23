@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 
 const _kTutorialSeenKey = 'trombl_tutorial_seen';
@@ -39,19 +41,27 @@ const _slides = [
   ),
 ];
 
-class TutorialScreen extends StatefulWidget {
+class TutorialScreen extends ConsumerStatefulWidget {
   const TutorialScreen({super.key});
 
   @override
-  State<TutorialScreen> createState() => _TutorialScreenState();
+  ConsumerState<TutorialScreen> createState() => _TutorialScreenState();
 }
 
-class _TutorialScreenState extends State<TutorialScreen> {
+class _TutorialScreenState extends ConsumerState<TutorialScreen> {
   final _ctrl = PageController();
   int _page = 0;
 
-  Future<void> _finish() async {
+  @override
+  void initState() {
+    super.initState();
+    ref.read(analyticsRepositoryProvider).trackTutorialStarted();
+  }
+
+  Future<void> _finish({required bool skipped}) async {
     HapticFeedback.heavyImpact();
+    final repo = ref.read(analyticsRepositoryProvider);
+    skipped ? repo.trackTutorialSkipped(atSlide: _page) : repo.trackTutorialCompleted();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kTutorialSeenKey, true);
     if (mounted) context.go('/vibe');
@@ -65,7 +75,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
         curve: Curves.easeOutCubic,
       );
     } else {
-      _finish();
+      _finish(skipped: false);
     }
   }
 
@@ -92,7 +102,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                 children: [
                   if (!isLast)
                     GestureDetector(
-                      onTap: _finish,
+                      onTap: () => _finish(skipped: true),
                       child: const Text(
                         'skip',
                         style: TextStyle(

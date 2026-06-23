@@ -69,4 +69,26 @@ abstract final class CrashService {
       FirebaseCrashlytics.instance.setUserIdentifier('');
     } catch (_) {}
   }
+
+  /// Keeps every crash report filterable by guest/registered status,
+  /// current screen, and analytics session — set by [AnalyticsRepository]
+  /// on every identity change and screen transition, not called directly
+  /// from feature code.
+  static void setContext({
+    String? guestId,
+    String? userType,
+    String? screen,
+    String? sessionId,
+  }) {
+    if (!_ready) return;
+    try {
+      if (guestId != null) {
+        FirebaseCrashlytics.instance.setUserIdentifier(guestId);
+        FirebaseCrashlytics.instance.setCustomKey('guest_id', guestId);
+      }
+      if (userType != null) FirebaseCrashlytics.instance.setCustomKey('user_type', userType);
+      if (screen != null) FirebaseCrashlytics.instance.setCustomKey('screen', screen);
+      if (sessionId != null) FirebaseCrashlytics.instance.setCustomKey('session_id', sessionId);
+    } catch (_) {}
+  }
 }

@@ -88,6 +88,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   // Answers stored as lists (single-select screens store one item)
   final List<List<String>> _answers = List.generate(_screens.length, (_) => []);
 
+  @override
+  void initState() {
+    super.initState();
+    ref.read(analyticsRepositoryProvider).trackOnboardingStarted();
+  }
+
   List<String> get _current => _answers[_page];
   _ScreenDef get _def => _screens[_page];
 
@@ -140,6 +146,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // Non-fatal — let user proceed even if save fails
     }
 
+    ref.read(analyticsRepositoryProvider).trackOnboardingCompleted();
     if (mounted) context.go('/tutorial');
   }
 

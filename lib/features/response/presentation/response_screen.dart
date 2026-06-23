@@ -4,8 +4,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
-import '../../../core/observability/analytics_service.dart';
 import '../../../shared/models/models.dart';
 import '../../chat/presentation/chat_args.dart';
 import '../../home/providers/home_providers.dart';
@@ -98,7 +98,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
       vibe: args.vibe,
       tromMessage: args.tromMessage,
     );
-    AnalyticsService.actionLaunched(tag: args.tag, result: result.name);
+    ref.read(analyticsRepositoryProvider).trackActionLaunched(tag: args.tag, result: result.name);
     if (!mounted) return;
     setState(() => _loading = false);
 
@@ -161,14 +161,14 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
       city: ref.read(cityProvider),
       tromMessage: args.tromMessage,
     );
-    AnalyticsService.actionLaunched(tag: args.tag, result: result.name);
+    ref.read(analyticsRepositoryProvider).trackActionLaunched(tag: args.tag, result: result.name);
     if (!mounted) return;
 
     switch (result) {
       case InternalRouteAction(:final route):
         setState(() => _loading = false);
         if (route == '/dnd') {
-          AnalyticsService.dndEntered();
+          ref.read(analyticsRepositoryProvider).trackDndEntered();
           context.go(route);
         } else {
           context.push(route);
@@ -298,6 +298,12 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
     final accent = TromblColors.accentFor(args.vibe);
     final cardTint = accent.withValues(alpha: 0.11);
     final reactionArgs = (vibe: args.vibe, optionLabel: args.optionLabel);
+    ref.listen(reactionProvider(reactionArgs), (previous, next) {
+      if (next.hasValue && !(previous?.hasValue ?? false)) {
+        ref.read(analyticsRepositoryProvider)
+            .trackReactionLoaded(vibe: args.vibe, tag: args.tag);
+      }
+    });
     final reaction = ref.watch(reactionProvider(reactionArgs));
 
     return Scaffold(
@@ -652,6 +658,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
         },
         onShare: () {
           HapticFeedback.lightImpact();
+          ref.read(analyticsRepositoryProvider).trackShareClicked(surface: 'response_multi');
           final vibeEmoji = args.vibe == 'fomo' ? '⚡' : '🛌';
           SharePlus.instance.share(ShareParams(
             text: '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',
@@ -728,6 +735,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
+                  ref.read(analyticsRepositoryProvider).trackShareClicked(surface: 'response_standard');
                   final vibeEmoji = args.vibe == 'fomo' ? '⚡' : '🛌';
                   SharePlus.instance.share(ShareParams(
                     text: '$vibeEmoji trombl says: ${args.optionLabel}\ntrombl.com',

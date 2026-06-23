@@ -27,8 +27,22 @@ class LoginScreen extends HookConsumerWidget {
     final resendCooldown = useState(0); // OTP path only
     final authSub = useRef<StreamSubscription<AuthState>?>(null);
 
+    // True when this screen is upgrading an existing guest (anonymous)
+    // session rather than signing in fresh — changes which Supabase Auth
+    // calls are used so the guest's user id (and everything written under
+    // it: sessions, picks, ai_picks, memory_nodes...) survives the upgrade
+    // unchanged instead of being replaced by a brand-new account.
+    final isGuestUpgrade = ref.read(guestIdentityServiceProvider).isGuest;
+
     useEffect(() {
       return () => authSub.value?.cancel();
+    }, const []);
+
+    useEffect(() {
+      if (isGuestUpgrade) {
+        ref.read(analyticsRepositoryProvider).trackSignupPromptShown(surface: 'login_screen');
+      }
+      return null;
     }, const []);
 
     Future<void> routeAfterSignIn() async {
@@ -58,13 +72,21 @@ class LoginScreen extends HookConsumerWidget {
         return;
       }
       loading.value = true;
+      ref.read(analyticsRepositoryProvider).trackSignupStarted();
       try {
         if (FeatureFlags.emailConfirmationEnabled) {
           // MAGIC LINK PATH — send link, show waiting state, listen for click.
-          await ref.read(supabaseProvider).auth.signInWithOtp(
-            email: raw,
-            emailRedirectTo: 'trombl://auth/callback',
-          );
+          if (isGuestUpgrade) {
+            await ref.read(guestIdentityServiceProvider).beginUpgrade(
+                  raw,
+                  emailRedirectTo: 'trombl://auth/callback',
+                );
+          } else {
+            await ref.read(supabaseProvider).auth.signInWithOtp(
+              email: raw,
+              emailRedirectTo: 'trombl://auth/callback',
+            );
+          }
           sentEmail.value = raw;
           sent.value = true;
           loading.value = false;
@@ -74,19 +96,37 @@ class LoginScreen extends HookConsumerWidget {
               .auth
               .onAuthStateChange
               .listen((state) async {
-            if (state.event == AuthChangeEvent.signedIn) {
+            // A guest upgrade confirms via `userUpdated` (the session/user
+            // already existed) instead of `signedIn` (a brand-new one).
+            final completed = isGuestUpgrade
+                ? state.event == AuthChangeEvent.userUpdated
+                : state.event == AuthChangeEvent.signedIn;
+            if (completed) {
               authSub.value?.cancel();
               authSub.value = null;
+              if (isGuestUpgrade) {
+                final id = ref.read(guestIdentityServiceProvider).currentId ?? '';
+                ref.read(analyticsRepositoryProvider)
+                    .trackSignupCompleted(oldGuestId: id, newUserId: id);
+              } else {
+                ref.read(analyticsRepositoryProvider)
+                    .trackLoginCompleted(method: 'magic_link');
+              }
               await routeAfterSignIn();
             }
           });
         } else {
           // OTP PATH — Supabase sends an 8-digit code; user types it to verify.
-          // signedIn fires only after verifyOTP succeeds, not immediately here.
-          await ref.read(supabaseProvider).auth.signInWithOtp(
-            email: raw,
-            shouldCreateUser: true,
-          );
+          // signedIn (or userUpdated, for a guest upgrade) fires only after
+          // verifyOTP succeeds, not immediately here.
+          if (isGuestUpgrade) {
+            await ref.read(guestIdentityServiceProvider).beginUpgrade(raw);
+          } else {
+            await ref.read(supabaseProvider).auth.signInWithOtp(
+              email: raw,
+              shouldCreateUser: true,
+            );
+          }
           sentEmail.value = raw;
           sent.value = true;
           resendCooldown.value = 30;
@@ -122,11 +162,22 @@ class LoginScreen extends HookConsumerWidget {
       }
       loading.value = true;
       try {
-        await ref.read(supabaseProvider).auth.verifyOTP(
-              email: sentEmail.value,
-              token: code,
-              type: OtpType.email,
-            );
+        if (isGuestUpgrade) {
+          final id = ref.read(guestIdentityServiceProvider).currentId ?? '';
+          await ref.read(guestIdentityServiceProvider).confirmUpgrade(
+                email: sentEmail.value,
+                token: code,
+              );
+          ref.read(analyticsRepositoryProvider)
+              .trackSignupCompleted(oldGuestId: id, newUserId: id);
+        } else {
+          await ref.read(supabaseProvider).auth.verifyOTP(
+                email: sentEmail.value,
+                token: code,
+                type: OtpType.email,
+              );
+          ref.read(analyticsRepositoryProvider).trackLoginCompleted(method: 'otp');
+        }
         await routeAfterSignIn();
       } catch (e) {
         debugPrint('verifyOtp error: $e');
@@ -170,7 +221,9 @@ class LoginScreen extends HookConsumerWidget {
                     ? 'check ur email.'
                     : joiningPlan
                         ? 'join the plan.\nwho r u?'
-                        : 'trom needs a name\nto yell at.',
+                        : isGuestUpgrade
+                            ? 'save ur progress\nbefore u lose it.'
+                            : 'trom needs a name\nto yell at.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontFamily: TromblText.serif,

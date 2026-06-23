@@ -4,7 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/trombl_theme.dart';
-import '../../../../core/observability/analytics_service.dart';
+import '../../../../core/providers.dart';
 import '../../../../shared/result.dart';
 import '../../../vibe/providers/session_providers.dart';
 import '../../../checkin/providers/checkin_providers.dart';
@@ -119,7 +119,7 @@ class OptionsSheet extends ConsumerWidget {
                 option: opt,
                 accent: accent,
                 onTap: () {
-                  AnalyticsService.categoryOpened(
+                  ref.read(analyticsRepositoryProvider).trackCategoryOpened(
                       categoryId: category.id, vibe: vibe);
                   _onPick(context, ref, opt);
                 },
@@ -156,7 +156,7 @@ class OptionsSheet extends ConsumerWidget {
 
     switch (result) {
       case Success(:final data):
-        AnalyticsService.optionSelected(
+        ref.read(analyticsRepositoryProvider).trackOptionSelected(
           categoryId: category.id,
           optionId: opt.id,
           tag: opt.tag,

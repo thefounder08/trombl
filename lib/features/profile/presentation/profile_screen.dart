@@ -42,6 +42,48 @@ final _tromsReadDataProvider = FutureProvider.autoDispose<TromsReadData>((ref) a
   );
 });
 
+/// Guests (anonymous sessions) have no email/password backing their
+/// account — signing out discards that identity permanently along with
+/// every session/pick/plan written under it. Real "sign out" is harmless
+/// for registered users, so this only intervenes for guests, steering them
+/// to the upgrade flow (`/login`) instead of silently deleting their trial.
+/// Returns true if the caller should proceed with sign-out.
+Future<bool> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+  if (!ref.read(guestIdentityServiceProvider).isGuest) return true;
+
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: TromblColors.card,
+      title: const Text("you're not signed up yet",
+          style: TextStyle(color: TromblColors.text, fontSize: 16)),
+      content: const Text(
+        "signing out as a guest deletes everything trom knows about u — "
+        "ur picks, plans, and history. sign up first if u want to keep it.",
+        style: TextStyle(color: TromblColors.textSub, fontSize: 13, height: 1.4),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('cancel', style: TextStyle(color: TromblColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(ctx).pop(false);
+            context.push('/login');
+          },
+          child: Text('sign up instead', style: TextStyle(color: TromblColors.fomo)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('delete & sign out', style: TextStyle(color: Color(0xFFE05252))),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}
+
 void _showSettingsSheet(BuildContext context, WidgetRef ref, Profile? profile) {
   showModalBottomSheet(
     context: context,
@@ -98,6 +140,7 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
   }
 
   Future<void> _signOut() async {
+    if (!await _confirmSignOut(context, ref)) return;
     await ref.read(supabaseProvider).auth.signOut();
     ref.read(activeSessionProvider.notifier).clear();
     if (mounted) Navigator.of(context).pop();
@@ -368,6 +411,51 @@ class _IdentityRow extends StatelessWidget {
   }
 }
 
+// ─── Guest banner — shown only for anonymous (not-yet-signed-up) sessions ──
+
+class _GuestBanner extends StatelessWidget {
+  const _GuestBanner({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: TromblColors.fomo.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: TromblColors.fomo.withValues(alpha: 0.28)),
+        ),
+        child: Row(
+          children: [
+            const Text('⚠️', style: TextStyle(fontSize: 14)),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                "ur browsing as a guest — sign up so u don't lose this.",
+                style: TextStyle(
+                  color: TromblColors.text,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text('save →',
+                style: TextStyle(
+                    color: TromblColors.fomo,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Profile screen — "trom's read on u" ───────────────────────────────────
 //
 // The screen's one job: prove trom knows the user. A warm, specific,
@@ -383,6 +471,7 @@ class ProfileScreen extends ConsumerWidget {
     final readData = ref.watch(_tromsReadDataProvider);
     final myPlans = ref.watch(myPlansProvider);
     final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
+    final isGuest = ref.watch(guestIdentityServiceProvider).isGuest;
 
     return Scaffold(
       body: SafeArea(
@@ -401,6 +490,15 @@ class ProfileScreen extends ConsumerWidget {
                       child: const Text('← home',
                           style: TextStyle(color: TromblColors.textSub)),
                     ),
+
+                    if (isGuest) ...[
+                      const SizedBox(height: 14),
+                      _GuestBanner(onTap: () {
+                        ref.read(analyticsRepositoryProvider)
+                            .trackSignupPromptShown(surface: 'profile_banner');
+                        context.push('/login');
+                      }),
+                    ],
 
                     const SizedBox(height: 18),
 
@@ -520,6 +618,7 @@ class ProfileScreen extends ConsumerWidget {
             const _AppVersion(),
             GestureDetector(
               onTap: () async {
+                if (!await _confirmSignOut(context, ref)) return;
                 await ref.read(supabaseProvider).auth.signOut();
                 ref.read(activeSessionProvider.notifier).clear();
               },

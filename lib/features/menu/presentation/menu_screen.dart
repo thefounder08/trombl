@@ -118,7 +118,10 @@ class MenuScreen extends ConsumerWidget {
                         ),
                       if (pickCount >= 2) const SizedBox(width: 14),
                       GestureDetector(
-                        onTap: () => context.push('/profile'),
+                        onTap: () {
+                          ref.read(analyticsRepositoryProvider).trackProfileOpened();
+                          context.push('/profile');
+                        },
                         child: Container(
                           width: 30, height: 30,
                           decoration: BoxDecoration(

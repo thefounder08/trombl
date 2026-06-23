@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers.dart';
+import '../observability/analytics_route_observer.dart';
 import '../../features/onboarding/presentation/login_screen.dart';
 import '../../features/onboarding/presentation/setup_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
@@ -76,6 +77,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     refreshListenable: _AuthRefresh(ref),
+    observers: [AnalyticsRouteObserver(ref.watch(analyticsRepositoryProvider))],
     routes: [
       GoRoute(
         path: '/login',

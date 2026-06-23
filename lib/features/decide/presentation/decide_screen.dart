@@ -10,7 +10,6 @@ import '../../../core/ai/models/llm_message.dart';
 import '../../../core/providers.dart';
 import '../../../core/services/weather_service.dart';
 import '../../../shared/result.dart';
-import '../../../core/observability/analytics_service.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../chat/presentation/chat_args.dart';
 import '../../menu/domain/action_engine.dart';
@@ -56,6 +55,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
   // ── Pick request ─────────────────────────────────────────────────────────────
 
   Future<void> _requestPick() async {
+    ref.read(analyticsRepositoryProvider).trackAIDecideStarted();
     setState(() => _phase = _Phase.loading);
 
     final session = ref.read(activeSessionProvider);
@@ -91,6 +91,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     );
 
     AiPick pick;
+    var usedFallback = false;
     final start = DateTime.now();
     final result = await ref.read(llmProvider).generate(
           LlmRequest(system: prompt.system, prompt: prompt.userPrompt),
@@ -118,6 +119,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
                 debugPrint('[Decide] retry also generic: "${retryPick.pickText}" — using fallback');
                 pick = PickFallback.get(session.vibe, now.hour, session.id,
                     rerollCount: _rerollCount, exclude: List.unmodifiable(_inSessionRejects));
+                usedFallback = true;
               } else {
                 pick = retryPick;
               }
@@ -125,6 +127,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
               debugPrint('[Decide] retry failed($error) — using fallback');
               pick = PickFallback.get(session.vibe, now.hour, session.id,
                   rerollCount: _rerollCount, exclude: List.unmodifiable(_inSessionRejects));
+              usedFallback = true;
           }
         }
         usage.log(
@@ -139,10 +142,15 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
         debugPrint('[Decide] LLM Failure($error) — using fallback (rerollCount=$_rerollCount)');
         pick = PickFallback.get(session.vibe, now.hour, session.id,
             rerollCount: _rerollCount, exclude: List.unmodifiable(_inSessionRejects));
+        usedFallback = true;
         usage.log(
             endpoint: 'decide', cacheHit: false, fallbackLayer: 3, durationMs: ms);
     }
 
+    ref.read(analyticsRepositoryProvider).trackAIDecideCompleted(
+          fromFallback: usedFallback,
+          rerollCount: _rerollCount,
+        );
     debugPrint('[Decide] pick saved: "${pick.pickText}" | reason: "${pick.reasonText}" | tag: ${pick.tag}');
 
     pick = pick.copyWith(
@@ -171,6 +179,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
       unawaited(ref.read(decideRepositoryProvider).markRerolled(current.id));
     }
     setState(() => _rerollCount++);
+    ref.read(analyticsRepositoryProvider).trackAIReroll(rerollCount: _rerollCount);
 
     // Level 4: after 3 rerolls trom stops guessing and asks ONE question.
     if (_rerollCount >= 3) {
@@ -212,6 +221,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
     if (pick == null || _actionLoading) return;
 
     unawaited(ref.read(decideRepositoryProvider).markAccepted(pick.id));
+    ref.read(analyticsRepositoryProvider).trackAIAccepted(tag: pick.tag);
 
     if (pick.tag == 'rest' || pick.tag == 'focus') {
       if (mounted) setState(() => _phase = _Phase.done);
@@ -234,7 +244,7 @@ class _DecideScreenState extends ConsumerState<DecideScreen> {
 
     switch (result) {
       case InternalRouteAction(:final route):
-        if (route == '/dnd') AnalyticsService.dndEntered();
+        if (route == '/dnd') ref.read(analyticsRepositoryProvider).trackDndEntered();
         context.push(route);
         return;
       case ExternalUrlAction(:final url, :final fallbackUrl):

@@ -8,12 +8,14 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/app_config.dart';
+import 'core/identity/guest_identity_service.dart';
 import 'core/providers.dart';
 import 'core/router/app_router.dart';
 import 'core/services/pending_join_service.dart';
 import 'core/theme/trombl_theme.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/observability/analytics_service.dart';
+import 'core/observability/analytics_session_controller.dart';
 import 'core/observability/crash_service.dart';
 
 Future<void> main() async {
@@ -39,11 +41,24 @@ Future<void> _boot() async {
     publishableKey: AppConfig.supabaseAnonKey,
   );
 
+  // Guest mode: give every fresh install a real (anonymous) Supabase
+  // session immediately, before the router ever renders /login, so a
+  // first-time user lands straight in the app instead of at a sign-in
+  // wall. Works on web too — this is plain Supabase Auth, not a
+  // platform-specific SDK. No-ops if a session already exists (returning
+  // guest or registered user), and fails soft (falls back to today's
+  // login-required behavior) if anonymous sign-ins aren't enabled on the
+  // Supabase project yet.
+  await GuestIdentityService(Supabase.instance.client).bootstrap();
+
   // Firebase init — mobile only. There's no web Firebase config
   // (firebase_options.dart / JS SDK setup) yet, and firebase_crashlytics
   // doesn't support web at all, so Firebase.initializeApp() throws inside
   // the JS interop layer on web in a way that escapes this try/catch.
-  // CrashService + AnalyticsService gracefully no-op until this succeeds.
+  // CrashService + AnalyticsService gracefully no-op until this succeeds —
+  // guest identity and in-app/local analytics buffering above still work
+  // fully on web; only the Firebase Analytics/Crashlytics destination is
+  // mobile-only for now.
   if (!kIsWeb) {
     try {
       await Firebase.initializeApp();
@@ -85,28 +100,47 @@ class TromblApp extends ConsumerStatefulWidget {
 }
 
 class _TromblAppState extends ConsumerState<TromblApp> {
+  AnalyticsSessionController? _sessionController;
+
   @override
   void initState() {
     super.initState();
     _listenAuth();
+    _initAnalytics();
+  }
+
+  Future<void> _initAnalytics() async {
+    final repo = ref.read(analyticsRepositoryProvider);
+    await repo.init();
+    repo.syncUserIdentity();
+    _sessionController = AnalyticsSessionController(repo);
+    await _sessionController!.start();
   }
 
   void _listenAuth() {
     final client = Supabase.instance.client;
 
     // Handle sign-in: identify user in crash/analytics, register FCM token.
+    // Fires for guest (anonymous) sign-ins too — `isAnonymous` gates the
+    // notification-permission prompt so guests aren't asked before they've
+    // even tried the app; crash/analytics identity is set for everyone so
+    // guest activity is tracked from the very first launch.
     client.auth.onAuthStateChange.listen((event) {
       if (event.event == AuthChangeEvent.signedIn) {
-        final uid = event.session?.user.id;
-        if (uid != null) {
-          CrashService.setUser(uid);
-          AnalyticsService.setUser(uid);
+        final user = event.session?.user;
+        if (user != null) {
+          CrashService.setUser(user.id);
+          if (mounted) ref.read(analyticsRepositoryProvider).syncUserIdentity();
         }
+        if (user?.isAnonymous ?? false) return;
         NotificationService()
             .requestPermission()
             .then((granted) async {
-              if (granted) {
-                AnalyticsService.notificationPermissionGranted();
+              if (mounted) {
+                final repo = ref.read(analyticsRepositoryProvider);
+                granted
+                    ? repo.trackNotificationPermissionGranted()
+                    : repo.trackNotificationPermissionDenied();
               }
               if (!granted) return;
               await NotificationService().registerToken();
@@ -115,26 +149,32 @@ class _TromblAppState extends ConsumerState<TromblApp> {
             .catchError((_) {});
       } else if (event.event == AuthChangeEvent.signedOut) {
         CrashService.clearUser();
-        AnalyticsService.clearUser();
         NotificationService().unregisterTokens().catchError((_) {});
         NotificationService().cancelAll().catchError((_) {});
       }
     });
 
-    // Cold start — already signed in.
+    // Cold start — already signed in (guest or registered).
     final current = client.auth.currentUser;
     if (current != null) {
       CrashService.setUser(current.id);
-      AnalyticsService.setUser(current.id);
-      NotificationService()
-          .requestPermission()
-          .then((granted) async {
-            if (!granted) return;
-            await NotificationService().registerToken();
-            await NotificationService().scheduleDailyReminders();
-          })
-          .catchError((_) {});
+      if (!current.isAnonymous) {
+        NotificationService()
+            .requestPermission()
+            .then((granted) async {
+              if (!granted) return;
+              await NotificationService().registerToken();
+              await NotificationService().scheduleDailyReminders();
+            })
+            .catchError((_) {});
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _sessionController?.dispose();
+    super.dispose();
   }
 
   @override

@@ -4,7 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/trombl_theme.dart';
-import '../../../core/observability/analytics_service.dart';
+import '../../../core/providers.dart';
 import '../providers/session_providers.dart';
 import '../../onboarding/presentation/onboarding_screen.dart' show onboardingCompletedProvider;
 
@@ -32,7 +32,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
       if (existing.vibe != vibe) {
         await ref.read(activeSessionProvider.notifier).switchVibe();
       }
-      AnalyticsService.vibePicked(vibe: vibe);
+      ref.read(analyticsRepositoryProvider).trackVibeSelected(vibe);
       if (mounted) context.go('/home');
       return;
     }
@@ -48,7 +48,7 @@ class _VibeScreenState extends ConsumerState<VibeScreen> {
       }
       return;
     }
-    AnalyticsService.vibePicked(vibe: vibe);
+    ref.read(analyticsRepositoryProvider).trackVibeSelected(vibe);
     if (mounted) context.go('/home');
   }
 

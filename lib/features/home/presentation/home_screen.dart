@@ -113,7 +113,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const _NotificationBell(),
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: () => context.push('/profile'),
+                        onTap: () {
+                          ref.read(analyticsRepositoryProvider).trackProfileOpened();
+                          context.push('/profile');
+                        },
                         child: Container(
                           width: 30,
                           height: 30,
@@ -516,7 +519,10 @@ class _Zone3 extends ConsumerWidget {
 
         // Profile icon tap target (subtle — no label, profile has its own page)
         GestureDetector(
-          onTap: () => context.push('/profile'),
+          onTap: () {
+                          ref.read(analyticsRepositoryProvider).trackProfileOpened();
+                          context.push('/profile');
+                        },
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [

@@ -95,6 +95,9 @@ class RsvpNotifier extends Notifier<AsyncValue<String?>> {
       Success(:final data) => AsyncValue.data(data.status),
       Failure(:final error) => AsyncValue.error(error, StackTrace.empty),
     };
+    if (result is Success<PlanMember>) {
+      ref.read(analyticsRepositoryProvider).trackPlanJoined(status: status);
+    }
     ref.invalidate(myMembershipProvider(arg));
     ref.invalidate(planMembersProvider(arg));
   }

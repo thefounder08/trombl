@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/result.dart';
 import '../domain/plan_phrasing.dart';
@@ -187,6 +188,7 @@ class _CreatePlanScreenState extends ConsumerState<CreatePlanScreen> {
 
     switch (result) {
       case Success(:final data):
+        ref.read(analyticsRepositoryProvider).trackPlanCreated(vibe: widget.args.vibe);
         setState(() {
           _shareUrl = data.shareUrl;
           _planId   = data.plan.id;
