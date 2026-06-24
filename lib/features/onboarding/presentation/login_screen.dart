@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -187,48 +186,46 @@ class LoginScreen extends HookConsumerWidget {
                 style: const TextStyle(fontSize: 13.5, color: TromblColors.textSub, height: 1.5),
               ),
               const SizedBox(height: 28),
-              if (kDebugMode) ...[
-                _PrimaryButton(
-                  label: '⚡ dev skip (fresh user)',
-                  onTap: () async {
-                    loading.value = true;
-                    try {
-                      await ref.read(supabaseProvider).auth.signInWithPassword(
-                        email: 'dev@trombl.com',
-                        password: 'trombldev123',
-                      );
-                      final uid = ref.read(supabaseProvider).auth.currentUser?.id;
-                      if (uid != null) {
-                        await ref.read(supabaseProvider).from('profiles').upsert({
-                          'id': uid,
-                          'display_name': null,
-                          'handle': null,
-                          'city': null,
-                          'lifestyle': null,
-                          'onboarding_completed': false,
-                          'goals': <String>[],
-                          'archetype': null,
-                          'schedule_type': null,
-                          'weekend_pref': null,
-                          'wants_more': <String>[],
-                        });
-                      }
-                      ref.read(activeSessionProvider.notifier).clear();
-                      if (context.mounted) context.go('/setup');
-                    } catch (e) {
-                      debugPrint('dev login error: $e');
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('dev skip failed: $e')),
-                        );
-                      }
-                    } finally {
-                      if (context.mounted) loading.value = false;
+              _PrimaryButton(
+                label: '⚡ dev skip (fresh user)',
+                onTap: () async {
+                  loading.value = true;
+                  try {
+                    await ref.read(supabaseProvider).auth.signInWithPassword(
+                      email: 'dev@trombl.com',
+                      password: 'trombldev123',
+                    );
+                    final uid = ref.read(supabaseProvider).auth.currentUser?.id;
+                    if (uid != null) {
+                      await ref.read(supabaseProvider).from('profiles').upsert({
+                        'id': uid,
+                        'display_name': null,
+                        'handle': null,
+                        'city': null,
+                        'lifestyle': null,
+                        'onboarding_completed': false,
+                        'goals': <String>[],
+                        'archetype': null,
+                        'schedule_type': null,
+                        'weekend_pref': null,
+                        'wants_more': <String>[],
+                      });
                     }
-                  },
-                ),
-                const SizedBox(height: 20),
-              ],
+                    ref.read(activeSessionProvider.notifier).clear();
+                    if (context.mounted) context.go('/setup');
+                  } catch (e) {
+                    debugPrint('dev login error: $e');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('dev skip failed: $e')),
+                      );
+                    }
+                  } finally {
+                    if (context.mounted) loading.value = false;
+                  }
+                },
+              ),
+              const SizedBox(height: 20),
               // Body: OTP entry (false path, sent), magic-link wait (true path, sent),
               // or email input (either path, not yet sent).
               if (!FeatureFlags.emailConfirmationEnabled && sent.value) ...[
