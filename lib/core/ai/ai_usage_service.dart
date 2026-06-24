@@ -23,9 +23,9 @@ class AiUsageService {
       'endpoint': endpoint,
       'cache_hit': cacheHit,
       'fallback_layer': fallbackLayer,
-      if (promptChars != null) 'prompt_chars': promptChars,
-      if (responseChars != null) 'response_chars': responseChars,
-      if (durationMs != null) 'duration_ms': durationMs,
+      'prompt_chars': ?promptChars,
+      'response_chars': ?responseChars,
+      'duration_ms': ?durationMs,
     }).then((_) {}).catchError((e) {
       debugPrint('[AiUsage] log error: $e');
     });
