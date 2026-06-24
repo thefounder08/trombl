@@ -18,7 +18,7 @@ class PlanRepository {
     try {
       final row = await _client
           .from('plans')
-          .insert({'owner_id': _uid, 'vibe': vibe, 'title': title, if (detail != null) 'detail': detail})
+          .insert({'owner_id': _uid, 'vibe': vibe, 'title': title, 'detail': ?detail})
           .select()
           .single();
       final plan = Plan.fromJson(row);

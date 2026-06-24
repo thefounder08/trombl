@@ -110,7 +110,7 @@ class HistoryScreen extends ConsumerWidget {
                       style: TextStyle(
                           color: TromblColors.textMuted, fontSize: 13)),
                 ),
-                error: (_, __) => const Center(
+                error: (_, _) => const Center(
                   child: Text("couldn't load ur history.",
                       style: TextStyle(
                           color: TromblColors.textMuted, fontSize: 13)),

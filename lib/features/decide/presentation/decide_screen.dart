@@ -703,7 +703,7 @@ class _LoadingState extends State<_Loading>
   Widget build(BuildContext context) => Center(
         child: AnimatedBuilder(
           animation: _anim,
-          builder: (_, __) => Opacity(
+          builder: (_, _) => Opacity(
             opacity: _anim.value,
             child: Column(
               mainAxisSize: MainAxisSize.min,

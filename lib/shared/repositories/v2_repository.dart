@@ -94,7 +94,7 @@ class V2Repository {
             'title': title,
             'status': 'open',
             'priority': priority,
-            if (category != null) 'category': category,
+            'category': ?category,
           })
           .select()
           .single();

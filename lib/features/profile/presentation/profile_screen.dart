@@ -10,6 +10,8 @@ import '../../decide/domain/ai_pick_model.dart';
 import '../../decide/providers/decide_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../../plans/providers/plan_providers.dart';
+import '../../../core/auth/auth_controller.dart';
+import '../../auth/presentation/signup_bottom_sheet.dart';
 import '../domain/troms_read.dart';
 
 // Route stays /profile for now — rename later (see CLAUDE.md naming notes).
@@ -70,7 +72,7 @@ Future<bool> _confirmSignOut(BuildContext context, WidgetRef ref) async {
         TextButton(
           onPressed: () {
             Navigator.of(ctx).pop(false);
-            context.push('/login');
+            showSignupBottomSheet(context, surface: 'signout_dialog');
           },
           child: Text('sign up instead', style: TextStyle(color: TromblColors.fomo)),
         ),
@@ -141,7 +143,7 @@ class _SettingsSheetState extends ConsumerState<_SettingsSheet> {
 
   Future<void> _signOut() async {
     if (!await _confirmSignOut(context, ref)) return;
-    await ref.read(supabaseProvider).auth.signOut();
+    await ref.read(authControllerProvider.notifier).signOut();
     ref.read(activeSessionProvider.notifier).clear();
     if (mounted) Navigator.of(context).pop();
   }
@@ -494,9 +496,7 @@ class ProfileScreen extends ConsumerWidget {
                     if (isGuest) ...[
                       const SizedBox(height: 14),
                       _GuestBanner(onTap: () {
-                        ref.read(analyticsRepositoryProvider)
-                            .trackSignupPromptShown(surface: 'profile_banner');
-                        context.push('/login');
+                        showSignupBottomSheet(context, surface: 'profile_banner');
                       }),
                     ],
 
@@ -529,7 +529,7 @@ class ProfileScreen extends ConsumerWidget {
                     // ── Section 1: trom's read ──────────────────────────────
                     readData.when(
                       loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const Text(
+                      error: (_, _) => const Text(
                         "we just met. trom's still figuring u out.\n"
                         "pick something and come back —\n"
                         "that's when it gets interesting.",
@@ -619,7 +619,7 @@ class ProfileScreen extends ConsumerWidget {
             GestureDetector(
               onTap: () async {
                 if (!await _confirmSignOut(context, ref)) return;
-                await ref.read(supabaseProvider).auth.signOut();
+                await ref.read(authControllerProvider.notifier).signOut();
                 ref.read(activeSessionProvider.notifier).clear();
               },
               child: Container(

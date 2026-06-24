@@ -174,7 +174,7 @@ class _PulsingTromState extends State<_PulsingTrom>
   Widget build(BuildContext context) => Center(
         child: AnimatedBuilder(
           animation: _anim,
-          builder: (_, __) => Opacity(
+          builder: (_, _) => Opacity(
             opacity: _anim.value,
             child: const Text(
               'trom.',

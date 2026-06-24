@@ -34,7 +34,7 @@ Page<T> _page<T>(LocalKey key, Widget child) => CustomTransitionPage<T>(
       child: child,
       transitionDuration: const Duration(milliseconds: 280),
       reverseTransitionDuration: const Duration(milliseconds: 220),
-      transitionsBuilder: (_, animation, __, child) {
+      transitionsBuilder: (_, animation, _, child) {
         final curved = CurvedAnimation(
           parent: animation,
           curve: Curves.easeOutCubic,
@@ -197,6 +197,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// Bridges Riverpod auth changes to GoRouter's refresh mechanism.
 class _AuthRefresh extends ChangeNotifier {
   _AuthRefresh(Ref ref) {
-    ref.listen(authStateProvider, (_, __) => notifyListeners());
+    ref.listen(authStateProvider, (_, _) => notifyListeners());
   }
 }

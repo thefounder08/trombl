@@ -60,7 +60,7 @@ class CheckinScreen extends ConsumerWidget {
                           color: TromblColors.textMuted, fontSize: 14),
                     ),
                   ),
-                  error: (_, __) => const Center(
+                  error: (_, _) => const Center(
                     child: Text(
                       'trom lost track. try again.',
                       style: TextStyle(

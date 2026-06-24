@@ -148,6 +148,28 @@ class SessionRepository {
     } catch (_) {}
   }
 
+  /// OAuth-sourced profile fields (`avatar_url`, `email`, `auth_provider`) —
+  /// written via a *separate* upsert from [updateProfile] deliberately: if
+  /// these columns aren't migrated onto `profiles` yet, this call fails on
+  /// its own without taking the always-safe display_name/handle/city/
+  /// lifestyle write down with it (a single upsert request fails as one
+  /// unit in Postgres — mixing a maybe-missing column into the same call
+  /// as guaranteed-existing ones would risk losing both).
+  Future<void> updateOAuthProfileFields({
+    String? avatarUrl,
+    String? email,
+    String? authProvider,
+  }) async {
+    try {
+      final data = <String, dynamic>{};
+      if (avatarUrl != null) data['avatar_url'] = avatarUrl;
+      if (email != null) data['email'] = email;
+      if (authProvider != null) data['auth_provider'] = authProvider;
+      if (data.isEmpty) return;
+      await _client.from('profiles').upsert({'id': _uid, ...data});
+    } catch (_) {}
+  }
+
   Future<void> saveOnboardingData({
     required List<String> goals,
     required String archetype,

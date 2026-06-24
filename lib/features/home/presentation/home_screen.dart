@@ -142,7 +142,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // ── Zone 1: Greeting ─────────────────────────────────────────────
               greetingAsync.when(
                 loading: () => const SizedBox(height: 30),
-                error: (_, __) => const SizedBox(height: 30),
+                error: (_, _) => const SizedBox(height: 30),
                 data: (data) => Text(
                   buildGreeting(data, vibe),
                   style: const TextStyle(
@@ -484,7 +484,7 @@ class _Zone3 extends ConsumerWidget {
         // ── Plans ────────────────────────────────────────────────────────────
         myPlans.when(
           loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (_, _) => const SizedBox.shrink(),
           data: (plans) {
             if (plans.isEmpty) return const SizedBox.shrink();
             return Column(

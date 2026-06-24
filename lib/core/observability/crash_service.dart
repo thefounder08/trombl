@@ -79,16 +79,19 @@ abstract final class CrashService {
     String? userType,
     String? screen,
     String? sessionId,
+    String? provider,
   }) {
     if (!_ready) return;
     try {
       if (guestId != null) {
         FirebaseCrashlytics.instance.setUserIdentifier(guestId);
         FirebaseCrashlytics.instance.setCustomKey('guest_id', guestId);
+        FirebaseCrashlytics.instance.setCustomKey('user_id', guestId);
       }
       if (userType != null) FirebaseCrashlytics.instance.setCustomKey('user_type', userType);
       if (screen != null) FirebaseCrashlytics.instance.setCustomKey('screen', screen);
       if (sessionId != null) FirebaseCrashlytics.instance.setCustomKey('session_id', sessionId);
+      if (provider != null) FirebaseCrashlytics.instance.setCustomKey('provider', provider);
     } catch (_) {}
   }
 }

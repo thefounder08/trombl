@@ -55,8 +55,22 @@ class GuestIdentityService {
   /// truly no session.
   String? get currentId => _client.auth.currentUser?.id;
 
-  /// True for an anonymous (not-yet-signed-up) session.
-  bool get isGuest => _client.auth.currentUser?.isAnonymous ?? true;
+  /// ISO8601 creation timestamp of the current session's user — for an
+  /// anonymous session, this is the exact moment the guest was created, so
+  /// `AuthController` can compute "guest creation -> account creation"
+  /// duration straight from it without a separately-tracked local clock.
+  String? get currentUserCreatedAt => _client.auth.currentUser?.createdAt;
+
+  /// True for an anonymous (not-yet-signed-up) session. False both for a
+  /// registered session AND for *no session at all* (e.g. anonymous
+  /// sign-ins disabled on the Supabase project, so bootstrap() failed) —
+  /// deliberately not defaulting to true here, since callers that branch
+  /// auth behavior on this (LoginScreen's link-vs-plain-signup decision,
+  /// AuthRepository.continueWith) must never try to "link" a session that
+  /// doesn't exist. UI-only callers (the profile guest banner) naturally
+  /// just don't show anything in that no-session case either, which is
+  /// correct — the router sends a no-session user to /login regardless.
+  bool get isGuest => _client.auth.currentUser?.isAnonymous ?? false;
 
   /// `'guest'` or `'registered'` — used as the Firebase Analytics
   /// `user_type` parameter on every event.

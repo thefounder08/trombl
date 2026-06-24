@@ -68,7 +68,7 @@ class PlanDetailScreen extends ConsumerWidget {
           loading: () => const Center(
             child: CircularProgressIndicator(color: TromblColors.jomo),
           ),
-          error: (_, __) => const Center(
+          error: (_, _) => const Center(
             child: Text('plan not found.',
                 style: TextStyle(color: TromblColors.textMuted)),
           ),
@@ -184,7 +184,7 @@ class PlanDetailScreen extends ConsumerWidget {
                   if (!isOwner) ...[
                     myMemberAsync.when(
                       loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (_, _) => const SizedBox.shrink(),
                       data: (member) => _RsvpRow(
                         currentStatus: rsvpState.value ?? member?.status,
                         planId: planId,
@@ -202,7 +202,7 @@ class PlanDetailScreen extends ConsumerWidget {
                             style: TextStyle(
                                 color: TromblColors.textMuted, fontSize: 13)),
                       ),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (_, _) => const SizedBox.shrink(),
                       data: (members) {
                         final sorted = [...members]..sort((a, b) {
                             if (a.userId == uid) return -1;

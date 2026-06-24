@@ -55,7 +55,7 @@ class DaySummaryScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               summaryAsync.when(
                 loading: () => _TypingIndicator(),
-                error: (_, __) => const Text(
+                error: (_, _) => const Text(
                   "trom lost the plot. but u lived it, so that's enough.",
                   style: TextStyle(
                     fontFamily: TromblText.serif,
@@ -201,7 +201,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) => Opacity(
+      builder: (_, _) => Opacity(
         opacity: _anim.value,
         child: const Text(
           'trom is processing ur day...',

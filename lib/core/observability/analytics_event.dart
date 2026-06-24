@@ -93,10 +93,20 @@ class AnalyticsEvents {
   static const notificationPermissionGranted = 'notification_permission_granted';
   static const notificationPermissionDenied = 'notification_permission_denied';
 
-  // ─── Signup / conversion ────────────────────────────────────────────────
+  // ─── Signup / conversion (email upgrade path) ───────────────────────────
   static const signupPromptShown = 'signup_prompt_shown';
   static const signupStarted = 'signup_started';
   static const signupCompleted = 'signup_completed';
   static const guestConverted = 'guest_converted';
   static const loginCompleted = 'login_completed';
+
+  // ─── OAuth (Google/Apple) signup + login ────────────────────────────────
+  static const guestSignupPromptViewed = 'guest_signup_prompt_viewed';
+  static const signupProviderSelected = 'signup_provider_selected';
+  static const signupSuccess = 'signup_success';
+  static const signupFailed = 'signup_failed';
+  static const guestUpgraded = 'guest_upgraded';
+  static const loginSuccess = 'login_success';
+  static const loginFailed = 'login_failed';
+  static const logout = 'logout';
 }

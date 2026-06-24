@@ -46,6 +46,22 @@
                 <data android:scheme="io.trombl"/>
             </intent-filter>
         </activity>
+        <!-- Sign in with Apple on Android has no native SDK — it completes via a
+             Chrome Custom Tab redirect, which lands here. Requires
+             AppConfig.appleServiceId/appleRedirectUri to be configured with a
+             real Apple Services ID + relay endpoint; see
+             docs/AUTHENTICATION_ARCHITECTURE.md for what that relay has to do. -->
+        <activity
+            android:name="com.aboutyou.dart_packages.sign_in_with_apple.SignInWithAppleCallback"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="signinwithapple" />
+                <data android:path="callback" />
+            </intent-filter>
+        </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

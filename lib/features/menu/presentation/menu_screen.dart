@@ -463,7 +463,7 @@ class _MyPlansSection extends ConsumerWidget {
 
     return myPlans.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (plans) {
         if (plans.isEmpty) return const SizedBox.shrink();
         return Column(

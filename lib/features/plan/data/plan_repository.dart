@@ -36,9 +36,9 @@ class FeaturePlanRepository {
             'owner_id': _uid,
             'vibe': vibe,
             'title': title,
-            if (detail    != null) 'detail':     detail,
-            if (startsAt  != null) 'starts_at':  startsAt.toIso8601String(),
-            if (expiresAt != null) 'expires_at': expiresAt.toIso8601String(),
+            'detail': ?detail,
+            'starts_at': ?startsAt?.toIso8601String(),
+            'expires_at': ?expiresAt?.toIso8601String(),
           })
           .select()
           .single();

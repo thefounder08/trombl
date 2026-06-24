@@ -35,11 +35,21 @@ class AnalyticsRepository {
   final GuestIdentityService _identity;
 
   bool _initialized = false;
-  late String _platform;
-  late String _appVersion;
-  late String _buildNumber;
-  late String _deviceLanguage;
-  late String _timezone;
+
+  // Computed eagerly (synchronously, no plugin channel involved) so these
+  // are never in a not-yet-set state — only app_version/build_number need
+  // an async plugin call, and those start with a safe placeholder until
+  // init() resolves it. A screen's useEffect/initState can fire a track*
+  // call before init() finishes (it's a real race — init() is awaited in
+  // TromblApp.initState, but the router can render a screen on the very
+  // first frame before that await completes), so nothing here may ever be
+  // `late` — a LateInitializationError here would crash the app over an
+  // analytics call, which is never acceptable.
+  final String _platform = _resolvePlatformStatic();
+  String _appVersion = 'unknown';
+  String _buildNumber = 'unknown';
+  final String _deviceLanguage = _resolveDeviceLanguageStatic();
+  final String _timezone = DateTime.now().timeZoneName;
 
   String? _currentScreen;
   String? _previousScreen;
@@ -53,7 +63,9 @@ class AnalyticsRepository {
   String? _sessionVibe;
 
   /// Call once at app boot (after the guest identity bootstrap), before any
-  /// events are tracked. Cheap and safe to call more than once.
+  /// events are tracked. Cheap and safe to call more than once. Tracking
+  /// calls made before this resolves still work — they just carry
+  /// `app_version`/`build_number: 'unknown'` until it does.
   Future<void> init() async {
     if (_initialized) return;
     try {
@@ -61,12 +73,8 @@ class AnalyticsRepository {
       _appVersion = info.version;
       _buildNumber = info.buildNumber;
     } catch (_) {
-      _appVersion = 'unknown';
-      _buildNumber = 'unknown';
+      // Already defaulted to 'unknown' above.
     }
-    _platform = _resolvePlatform();
-    _deviceLanguage = _resolveDeviceLanguage();
-    _timezone = DateTime.now().timeZoneName;
     _initialized = true;
 
     // Recover a session that never got a clean session_ended (app was
@@ -350,6 +358,39 @@ class AnalyticsRepository {
   void trackLoginCompleted({required String method}) =>
       track(AnalyticsEvents.loginCompleted, {'method': method});
 
+  // ─── OAuth (Google/Apple) signup + login ────────────────────────────────
+
+  void trackGuestSignupPromptViewed({required String surface}) =>
+      track(AnalyticsEvents.guestSignupPromptViewed, {'surface': surface});
+
+  void trackSignupProviderSelected({required String provider}) =>
+      track(AnalyticsEvents.signupProviderSelected, {'provider': provider});
+
+  void trackSignupSuccess({required String provider, required String method}) =>
+      track(AnalyticsEvents.signupSuccess, {'provider': provider, 'method': method});
+
+  void trackSignupFailed({required String provider, required String reason}) =>
+      track(AnalyticsEvents.signupFailed, {'provider': provider, 'reason': reason});
+
+  /// [guestLifetimeMs] is the duration from guest creation (the anonymous
+  /// user's `createdAt`) to this exact upgrade — the "guest creation ->
+  /// account creation" duration the spec asks for, computed from a real
+  /// timestamp rather than a locally-tracked clock that could drift across
+  /// app restarts.
+  void trackGuestUpgraded({required String provider, int? guestLifetimeMs}) =>
+      track(AnalyticsEvents.guestUpgraded, {
+        'provider': provider,
+        'guest_lifetime_ms': guestLifetimeMs,
+      });
+
+  void trackLoginSuccess({required String provider}) =>
+      track(AnalyticsEvents.loginSuccess, {'provider': provider});
+
+  void trackLoginFailed({required String provider, required String reason}) =>
+      track(AnalyticsEvents.loginFailed, {'provider': provider, 'reason': reason});
+
+  void trackLogout() => track(AnalyticsEvents.logout);
+
   // ─── User identity (call after every auth state change) ─────────────────
 
   void syncUserIdentity() {
@@ -372,13 +413,16 @@ class AnalyticsRepository {
   }
 
   // ─── Platform/locale helpers ────────────────────────────────────────────
+  // Static + called from field initializers, which run before the
+  // constructor body — see the comment on the fields above for why these
+  // can never be `late`.
 
-  String _resolvePlatform() {
+  static String _resolvePlatformStatic() {
     if (kIsWeb) return 'web';
     return defaultTargetPlatform.name; // android / iOS / etc, no dart:io needed
   }
 
-  String _resolveDeviceLanguage() {
+  static String _resolveDeviceLanguageStatic() {
     try {
       return PlatformDispatcher.instance.locale.toLanguageTag();
     } catch (_) {

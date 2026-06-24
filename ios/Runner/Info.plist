@@ -60,6 +60,19 @@
 				<string>io.trombl</string>
 			</array>
 		</dict>
+		<!-- google_sign_in: REVERSED_CLIENT_ID from GoogleService-Info.plist
+		     (the value already in that file under that exact key) — replace
+		     the placeholder below once a real GoogleService-Info.plist with
+		     an iOS OAuth client is in place. Without this, Google sign-in on
+		     iOS fails to return to the app after the picker. -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.REPLACE_WITH_REVERSED_CLIENT_ID</string>
+			</array>
+		</dict>
 	</array>
 	<!-- FCM background push — required for silent/background notifications on iOS -->
 	<key>UIBackgroundModes</key>

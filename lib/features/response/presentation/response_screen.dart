@@ -412,7 +412,7 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
                                     const SizedBox(height: 10),
                                     reaction.when(
                                       loading: () => const _TypingIndicator(),
-                                      error: (_, __) => const Text(
+                                      error: (_, _) => const Text(
                                         "here's something that'll do.",
                                         style: TextStyle(
                                           fontFamily: TromblText.sans,
@@ -827,7 +827,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) => Opacity(
+      builder: (_, _) => Opacity(
         opacity: _anim.value,
         child: const Text(
           'trom is thinking…',
