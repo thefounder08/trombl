@@ -100,7 +100,10 @@ class NotificationService {
   // ─── FCM token registration ───────────────────────────────────────────────
 
   /// Fetch the FCM token and upsert it to `push_tokens`.
-  /// Safe to call on every sign-in — uses conflict resolution on (user_id, token).
+  /// Safe to call on every sign-in — a device token belongs to exactly one
+  /// user (enforced by a unique constraint on `token`), so re-registering
+  /// under a different account reassigns the row instead of leaving a
+  /// stale duplicate behind for the previous user.
   Future<void> registerToken() async {
     try {
       final client = Supabase.instance.client;
@@ -109,26 +112,28 @@ class NotificationService {
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null) return;
 
-      await client.from('push_tokens').upsert({
-        'user_id': client.auth.currentUser!.id,
-        'token': token,
-        'platform': _platform(),
-      }, onConflict: 'user_id,token');
-
+      await _claimToken(client, token);
       debugPrint('[FCM] token registered: ${token.substring(0, 16)}…');
 
       // Refresh token on rotation
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
         if (client.auth.currentUser == null) return;
-        await client.from('push_tokens').upsert({
-          'user_id': client.auth.currentUser!.id,
-          'token': newToken,
-          'platform': _platform(),
-        }, onConflict: 'user_id,token');
+        await _claimToken(client, newToken);
       });
     } catch (e) {
       debugPrint('[FCM] token registration error: $e');
     }
+  }
+
+  /// Upserts on the unique `token` column so a device token always maps to
+  /// exactly the current user, even if it was previously owned by someone
+  /// else who signed in on the same device without signing out first.
+  Future<void> _claimToken(SupabaseClient client, String token) async {
+    await client.from('push_tokens').upsert({
+      'user_id': client.auth.currentUser!.id,
+      'token': token,
+      'platform': _platform(),
+    }, onConflict: 'token');
   }
 
   /// Unregister all tokens for the current user on sign-out.
