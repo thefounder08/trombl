@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -6,6 +7,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+
+import '../router/app_router.dart';
+import 'notification_routing.dart';
 
 /// Top-level handler required by Firebase for background messages.
 @pragma('vm:entry-point')
@@ -60,6 +64,7 @@ class NotificationService {
           android: androidSettings,
           iOS: darwinSettings,
         ),
+        onDidReceiveNotificationResponse: _onLocalNotificationTapped,
       );
     } catch (e) {
       debugPrint('[Notification] local plugin init skipped: $e');
@@ -70,6 +75,13 @@ class NotificationService {
     try {
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+
+      // App was backgrounded (not killed) when the push was tapped.
+      FirebaseMessaging.onMessageOpenedApp.listen(_navigateForMessage);
+
+      // App was fully killed and was launched by tapping the push.
+      final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null) _navigateForMessage(initialMessage);
     } catch (e) {
       debugPrint('[Notification] Firebase Messaging not available: $e');
     }
@@ -188,7 +200,34 @@ class NotificationService {
           presentSound: true,
         ),
       ),
+      payload: jsonEncode({'kind': msg.data['kind'] ?? '', 'data': msg.data}),
     );
+  }
+
+  /// Tapped a locally-shown notification (i.e. a push that arrived while
+  /// the app was in the foreground).
+  void _onLocalNotificationTapped(NotificationResponse response) {
+    final raw = response.payload;
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final kind = decoded['kind'] as String? ?? '';
+      final data = (decoded['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+      _navigate(kind, data);
+    } catch (e) {
+      debugPrint('[Notification] payload parse failed: $e');
+    }
+  }
+
+  /// Tapped a push that opened the app from background or killed state.
+  void _navigateForMessage(RemoteMessage msg) {
+    final kind = msg.data['kind'] ?? '';
+    _navigate(kind, msg.data);
+  }
+
+  void _navigate(String kind, Map<String, dynamic> data) {
+    final route = resolveNotificationRoute(kind, data);
+    appRouter?.go(route);
   }
 
   Future<void> _scheduleDaily({

@@ -53,10 +53,15 @@ Page<T> _page<T>(LocalKey key, Widget child) => CustomTransitionPage<T>(
       },
     );
 
+/// Global reference to the live router, for navigation from outside the
+/// widget tree (e.g. NotificationService handling a push tap). Set once
+/// routerProvider is first read; null only before app startup completes.
+GoRouter? appRouter;
+
 /// Auth-aware routing. Public paths bypass the login guard so plan invite
 /// links work without requiring sign-in first.
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/login',
     redirect: (context, state) {
       final loggedIn = ref.read(currentUserProvider) != null;
@@ -192,6 +197,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  appRouter = router;
+  return router;
 });
 
 /// Bridges Riverpod auth changes to GoRouter's refresh mechanism.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/notifications/notification_routing.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../domain/notification_model.dart';
 import '../providers/notification_providers.dart';
@@ -97,12 +98,16 @@ class NotificationCenterScreen extends ConsumerWidget {
                         itemBuilder: (_, i) => _NotificationTile(
                           notification: items[i],
                           onTap: () async {
-                            if (items[i].isRead) return;
-                            await ref
-                                .read(notificationRepositoryProvider)
-                                .markRead(items[i].id);
-                            ref.invalidate(notificationsProvider);
-                            ref.invalidate(unreadNotificationCountProvider);
+                            if (!items[i].isRead) {
+                              await ref
+                                  .read(notificationRepositoryProvider)
+                                  .markRead(items[i].id);
+                              ref.invalidate(notificationsProvider);
+                              ref.invalidate(unreadNotificationCountProvider);
+                            }
+                            final route = resolveNotificationRoute(
+                                items[i].kind, items[i].data);
+                            if (context.mounted) context.go(route);
                           },
                         ),
                       ),
