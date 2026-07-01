@@ -9,12 +9,24 @@ String resolveNotificationRoute(String kind, Map<String, dynamic> data) {
   switch (kind) {
     case 'daily_nudge':
       return '/decide';
+    case 'vibe_check':
+      return '/vibe';
+    case 'checkin_reminder':
+      return '/checkin';
+    case 'weekly_recap':
+      return '/history';
+    case 'plan_invite':
+      final token = data['plan_token'] as String?;
+      return token != null ? '/p/$token' : '/home';
+    case 'trom_message':
+      final seed = Uri.encodeQueryComponent(
+          (data['seed_text'] as String?) ?? "hey, what's on ur mind?");
+      return '/chat?seed=$seed';
+    case 'day_summary':
+      final sessionId = data['session_id'] as String?;
+      return sessionId != null ? '/day-summary/$sessionId' : '/home';
     case 'console_test':
       return '/notifications';
-    // Future kinds:
-    //   'plan_invite'        → '/p/${data['plan_token']}' or '/join-plan'
-    //   'checkin_reminder'   → '/checkin'
-    //   'weekly_recap'       → '/history'
     default:
       return '/home';
   }

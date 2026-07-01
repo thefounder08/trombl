@@ -111,6 +111,20 @@ class SessionRepository {
     }
   }
 
+  Future<Session?> sessionById(String sessionId) async {
+    try {
+      final row = await _client
+          .from('sessions')
+          .select()
+          .eq('id', sessionId)
+          .eq('user_id', _uid)
+          .single();
+      return Session.fromJson(row);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<List<Pick>> picksForSessions(List<String> sessionIds) async {
     if (sessionIds.isEmpty) return [];
     final rows =

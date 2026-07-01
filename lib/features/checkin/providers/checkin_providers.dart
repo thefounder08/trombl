@@ -80,6 +80,20 @@ typedef DaySummaryArgs = ({
   List<String> doneLabels,
 });
 
+/// Loads a past session + its picks from Supabase and returns DaySummaryArgs.
+/// Used when navigating to /day-summary/:sessionId from a notification tap
+/// (process may have been killed, so in-memory args are unavailable).
+final sessionSummaryArgsProvider = FutureProvider.autoDispose
+    .family<DaySummaryArgs?, String>((ref, sessionId) async {
+  final repo = ref.read(sessionRepositoryProvider);
+  final session = await repo.sessionById(sessionId);
+  if (session == null) return null;
+  final picks = await repo.picksForSessions([sessionId]);
+  final done = picks.where((p) => p.done).length;
+  final doneLabels = picks.where((p) => p.done).map((p) => p.label).toList();
+  return (vibe: session.vibe, total: picks.length, done: done, doneLabels: doneLabels);
+});
+
 final daySummaryProvider = FutureProvider.autoDispose
     .family<String, DaySummaryArgs>((ref, args) async {
   final llm = ref.watch(llmProvider);

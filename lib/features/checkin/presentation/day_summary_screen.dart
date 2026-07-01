@@ -172,6 +172,49 @@ class _Stat extends StatelessWidget {
   }
 }
 
+/// Loads session data from Supabase by ID then renders [DaySummaryScreen].
+/// Used as the destination for `day_summary` notification taps where the app
+/// may have been killed (no in-memory args survive process death).
+class DaySummaryScreenLoader extends ConsumerWidget {
+  const DaySummaryScreenLoader({super.key, required this.sessionId});
+  final String sessionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final argsAsync = ref.watch(sessionSummaryArgsProvider(sessionId));
+    return argsAsync.when(
+      loading: () => Scaffold(
+        body: Center(child: _TypingIndicator()),
+      ),
+      error: (_, __) => Scaffold(
+        body: Center(
+          child: Text(
+            "couldn't load that day.",
+            style: TextStyle(color: Colors.white54, fontSize: 14),
+          ),
+        ),
+      ),
+      data: (args) => args == null
+          ? Scaffold(
+              body: Center(
+                child: Text(
+                  "couldn't load that day.",
+                  style: TextStyle(color: Colors.white54, fontSize: 14),
+                ),
+              ),
+            )
+          : DaySummaryScreen(
+              args: DaySummaryScreenArgs(
+                vibe: args.vibe,
+                total: args.total,
+                done: args.done,
+                doneLabels: args.doneLabels,
+              ),
+            ),
+    );
+  }
+}
+
 class _TypingIndicator extends StatefulWidget {
   @override
   State<_TypingIndicator> createState() => _TypingIndicatorState();

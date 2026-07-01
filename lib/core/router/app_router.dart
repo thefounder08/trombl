@@ -14,7 +14,8 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/response/presentation/response_screen.dart';
 import '../../features/response/presentation/dnd_screen.dart';
 import '../../features/checkin/presentation/checkin_screen.dart';
-import '../../features/checkin/presentation/day_summary_screen.dart';
+import '../../features/checkin/presentation/day_summary_screen.dart'
+    show DaySummaryScreen, DaySummaryScreenArgs, DaySummaryScreenLoader;
 import '../../features/summary/presentation/summary_screen.dart';
 import '../../features/plan/presentation/plan_landing_screen.dart';
 import '../../features/plan/presentation/create_plan_screen.dart';
@@ -152,6 +153,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, s) => _page(
             s.pageKey, DaySummaryScreen(args: s.extra as DaySummaryScreenArgs)),
       ),
+      // /day-summary/:sessionId — loads from DB; used by notification taps
+      GoRoute(
+        path: '/day-summary/:sessionId',
+        pageBuilder: (_, s) => _page(
+          s.pageKey,
+          DaySummaryScreenLoader(sessionId: s.pathParameters['sessionId']!),
+        ),
+      ),
       GoRoute(
         path: '/plan/:id',
         pageBuilder: (_, s) => _page(
@@ -182,9 +191,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat',
-        redirect: (_, s) => s.extra is ChatArgs ? null : '/home',
-        pageBuilder: (_, s) =>
-            _page(s.pageKey, ChatScreen(args: s.extra as ChatArgs)),
+        pageBuilder: (_, s) {
+          final args = s.extra is ChatArgs
+              ? s.extra as ChatArgs
+              : ChatArgs(
+                  seedText: s.uri.queryParameters['seed'] ??
+                      "hey, what's on ur mind?",
+                );
+          return _page(s.pageKey, ChatScreen(args: args));
+        },
       ),
       GoRoute(
         path: '/journal',
