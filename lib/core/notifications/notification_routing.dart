@@ -7,9 +7,14 @@
 /// defined, everything resolves to the same default landing spot.
 String resolveNotificationRoute(String kind, Map<String, dynamic> data) {
   switch (kind) {
-    // TODO: route specific kinds to their relevant screen once the backend
-    // attaches the data needed to do so (e.g. a plan_id for plan-related
-    // nudges, a session id for daily_nudge, etc).
+    case 'daily_nudge':
+      return '/decide';
+    case 'console_test':
+      return '/notifications';
+    // Future kinds:
+    //   'plan_invite'        → '/p/${data['plan_token']}' or '/join-plan'
+    //   'checkin_reminder'   → '/checkin'
+    //   'weekly_recap'       → '/history'
     default:
       return '/home';
   }
