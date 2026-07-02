@@ -126,7 +126,9 @@ class _TromblAppState extends ConsumerState<TromblApp> {
     // even tried the app; crash/analytics identity is set for everyone so
     // guest activity is tracked from the very first launch.
     client.auth.onAuthStateChange.listen((event) {
-      if (event.event == AuthChangeEvent.signedIn) {
+      final isSignIn = event.event == AuthChangeEvent.signedIn ||
+          event.event == AuthChangeEvent.userUpdated;
+      if (isSignIn) {
         final user = event.session?.user;
         if (user != null) {
           CrashService.setUser(user.id);
