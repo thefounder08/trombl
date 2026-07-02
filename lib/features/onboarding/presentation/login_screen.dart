@@ -164,10 +164,21 @@ class LoginScreen extends HookConsumerWidget {
       try {
         if (isGuestUpgrade) {
           final id = ref.read(guestIdentityServiceProvider).currentId ?? '';
-          await ref.read(guestIdentityServiceProvider).confirmUpgrade(
-                email: sentEmail.value,
-                token: code,
-              );
+          try {
+            await ref.read(guestIdentityServiceProvider).confirmUpgrade(
+                  email: sentEmail.value,
+                  token: code,
+                );
+          } on AuthException {
+            // emailChange OTP failed — fall back to plain email OTP verify.
+            // This happens when Supabase "Secure email change" is enabled,
+            // which invalidates tokens for anonymous users with no prior email.
+            await ref.read(supabaseProvider).auth.verifyOTP(
+                  email: sentEmail.value,
+                  token: code,
+                  type: OtpType.email,
+                );
+          }
           ref.read(analyticsRepositoryProvider)
               .trackSignupCompleted(oldGuestId: id, newUserId: id);
         } else {
