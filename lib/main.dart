@@ -160,15 +160,17 @@ class _TromblAppState extends ConsumerState<TromblApp> {
     final current = client.auth.currentUser;
     if (current != null) {
       CrashService.setUser(current.id);
+      debugPrint('[Boot] user=${current.id} isAnonymous=${current.isAnonymous}');
       if (!current.isAnonymous) {
         NotificationService()
             .requestPermission()
             .then((granted) async {
+              debugPrint('[Boot] notification permission granted=$granted');
               if (!granted) return;
               await NotificationService().registerToken();
               await NotificationService().scheduleDailyReminders();
             })
-            .catchError((_) {});
+            .catchError((e) => debugPrint('[Boot] notification error: $e'));
       }
     }
   }

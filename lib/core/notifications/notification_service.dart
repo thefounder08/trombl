@@ -119,9 +119,12 @@ class NotificationService {
   Future<void> registerToken() async {
     try {
       final client = Supabase.instance.client;
-      if (client.auth.currentUser == null) return;
+      final user = client.auth.currentUser;
+      debugPrint('[FCM] registerToken called — user: ${user?.id}, isAnonymous: ${user?.isAnonymous}');
+      if (user == null) { debugPrint('[FCM] skipped — no user'); return; }
 
       final token = await FirebaseMessaging.instance.getToken();
+      debugPrint('[FCM] getToken result: ${token == null ? "NULL" : token.substring(0, 20)}…');
       if (token == null) return;
 
       await _claimToken(client, token);
@@ -141,11 +144,10 @@ class NotificationService {
   /// exactly the current user, even if it was previously owned by someone
   /// else who signed in on the same device without signing out first.
   Future<void> _claimToken(SupabaseClient client, String token) async {
-    await client.from('push_tokens').upsert({
-      'user_id': client.auth.currentUser!.id,
-      'token': token,
-      'platform': _platform(),
-    }, onConflict: 'token');
+    await client.rpc('claim_push_token', params: {
+      'p_token': token,
+      'p_platform': _platform(),
+    });
   }
 
   /// Unregister all tokens for the current user on sign-out.
