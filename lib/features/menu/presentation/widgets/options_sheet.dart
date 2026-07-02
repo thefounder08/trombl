@@ -132,6 +132,20 @@ class OptionsSheet extends ConsumerWidget {
   Future<void> _onPick(
       BuildContext context, WidgetRef ref, MenuOption opt) async {
     HapticFeedback.mediumImpact();
+    if (opt.isComingSoon) {
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'soon. working on it.',
+            style: TextStyle(fontFamily: 'DMSans'),
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     final session = ref.read(activeSessionProvider);
     if (session == null) return;
 
