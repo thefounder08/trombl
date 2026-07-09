@@ -12,13 +12,16 @@ pubspec.lock
 
 # IDE
 .idea/
-.vscode/
+.vscode/*
+!.vscode/launch.json
 *.iml
 
 # Secrets — never commit keys
 *.env
 .env*
 **/secrets.dart
+dart_defines/*.json
+!dart_defines/*.json.example
 
 # Supabase local
 supabase/.branches

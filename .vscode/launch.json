@@ -1,0 +1,92 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "dev · Android",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "dev",
+        "--dart-define-from-file=dart_defines/dev.json"
+      ]
+    },
+    {
+      "name": "staging · Android",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "staging",
+        "--dart-define-from-file=dart_defines/staging.json"
+      ]
+    },
+    {
+      "name": "prod · Android",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "prod",
+        "--dart-define-from-file=dart_defines/prod.json"
+      ]
+    },
+    {
+      "name": "dev · iOS",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "dev",
+        "--dart-define-from-file=dart_defines/dev.json"
+      ]
+    },
+    {
+      "name": "staging · iOS",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "staging",
+        "--dart-define-from-file=dart_defines/staging.json"
+      ]
+    },
+    {
+      "name": "prod · iOS",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "prod",
+        "--dart-define-from-file=dart_defines/prod.json"
+      ]
+    },
+    {
+      "name": "dev · Chrome",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "args": [
+        "--dart-define-from-file=dart_defines/dev.json"
+      ]
+    },
+    {
+      "name": "staging · Chrome",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "args": [
+        "--dart-define-from-file=dart_defines/staging.json"
+      ]
+    },
+    {
+      "name": "prod · Chrome",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "args": [
+        "--dart-define-from-file=dart_defines/prod.json"
+      ]
+    }
+  ]
+}

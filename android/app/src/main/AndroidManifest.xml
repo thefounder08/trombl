@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="trombl"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -88,6 +88,19 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- url_launcher: plain https/http links (Maps, BookMyShow, YouTube,
+             Netflix, Goodreads, wa.me fallback, etc). Without this, Android
+             11+ package-visibility rules hide even installed browsers like
+             Chrome from canLaunchUrl, so every https:// action silently
+             fails and falls through to the "couldn't open that" snackbar. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
         </intent>
         <!-- url_launcher: WhatsApp -->
         <intent>

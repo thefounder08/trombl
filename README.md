@@ -14,6 +14,28 @@ flutter run \
 
 No keys are hardcoded — they come from `--dart-define`. The app shows a config screen if they're missing.
 
+## Android release build (APK to share/sideload)
+
+Config keys have to be passed at build time — `flutter build apk --release`
+with no flags produces an APK where every installer sees the "missing
+config" screen, since the values are baked in at compile time, not read at
+runtime. Use the `dart_defines/*.json` files (gitignored — copy from the
+matching `.example` and fill in real values once, locally) with `--flavor`:
+
+```bash
+flutter build apk --release --flavor prod --dart-define-from-file=dart_defines/prod.json
+# output → build/app/outputs/flutter-apk/app-prod-release.apk
+```
+
+Swap `prod` for `dev`/`staging` (and the matching json file) to build those
+flavors instead. To sanity-check a built APK actually has real config baked
+in without installing it anywhere:
+
+```bash
+unzip -p build/app/outputs/flutter-apk/app-prod-release.apk lib/arm64-v8a/libapp.so \
+  | strings | grep -c 'supabase.co'   # should be > 0
+```
+
 ## Architecture
 
 ```
@@ -51,19 +73,22 @@ This is simpler and safer than the three-SDK setup, and it means no API key ever
 
 ## What's wired and real
 
-- Magic-link auth via Supabase (no passwords handled in-app).
+- Magic-link + Google/Apple auth via Supabase, plus guest (anonymous) mode.
 - Auth-aware routing (signed-out → /login, signed-in → /vibe).
 - The vibe pick creates a real `sessions` row in the DB.
+- Menu category grid + the action engine (WhatsApp drafts, Zomato/BookMyShow/Maps deep links, DND).
+- Response screen — trom's reaction to a pick, writes the pick to the DB.
+- **Wrap Up** (`/checkin`) — reviews everything decided today (menu picks + accepted AI picks) in one combined list with done/skipped status, then finalizes the session. One entry point (Home's "📦 wrap up" chip, carries a live unresolved count).
+- **Task resume popup** (`TaskWrapupController`) — on app foreground, nudges once per task ("did u actually do it?") for anything still unresolved; only fires for tasks with no other UI already asking the same question.
+- **Make Plan** (`/make-plan`) — its own multi-step flow (Choose Activity → Choose Options → Date & Time → Location → Invite Friends → Preview → Create), separate from the response/detail screen. Invite Friends searches existing Trombl users directly (no separate friends/contacts model); Plan Details shows Accepted/Pending/Declined live via Supabase Realtime on `plan_members`.
 - The profile reads real session history and computes a basic "read."
 - The LLM provider is wired to the proxy (used by reactions/weekly read).
 
-## What's stubbed (next build targets, in order)
+## Known gaps
 
-1. **Menu** — port the prototype's category grid + the working action engine (WhatsApp draft, Zomato/BookMyShow deep links, DND). The screen currently confirms the live session and routes on.
-2. **Response screen** — trom's reaction to a pick (calls the LLM proxy via `SystemPrompts.reaction`), writes the pick to the DB.
-3. **Check-in + day summary** — set `picks.done`, then the summary.
-4. **Profile read** — richer derivation (go-to move, history scrapbook) matching the prototype's `deriveRead`.
-5. **Plan / invite loop** — the shareable plan page (needs the `plans` public-read path already in the DB).
+- `test/action_engine_test.dart` has pre-existing drift against the current `action_engine.dart` keyword-matching (12 failing tests) — tracked separately, not yet fixed.
+- AI-generated pick tags ('social'/'food'/'explore') don't all match `MenuTag.fromString`'s vocabulary, so some AI suggestions show a false "coming soon" — tracked separately.
+- Search-and-invite in Make Plan creates a `pending` plan_members row and notifies the invitee (DB trigger), but there's no in-app UI yet to invite someone to a plan *after* it's already been created — only at creation time.
 
 ## Web build
 
