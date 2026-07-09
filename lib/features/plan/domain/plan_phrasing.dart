@@ -24,8 +24,9 @@ String? formatStartTime(DateTime? dt) {
 }
 
 
-// Used by create_plan_screen (title pre-fill) and plan_landing_screen
-// (headline for strangers). Both import from here so the mapping never
+// Used by the make_plan flow's preview step (title pre-fill) and
+// plan_landing_screen (headline for strangers). Both import from here so the
+// mapping never
 // diverges. When menu_data.dart gets a new option, add its mapping here.
 
 String planPhrasing(String rawLabel) {

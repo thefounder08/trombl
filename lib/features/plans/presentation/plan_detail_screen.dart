@@ -178,6 +178,12 @@ class PlanDetailScreen extends ConsumerWidget {
                         style: const TextStyle(
                             color: TromblColors.textSub, fontSize: 14)),
                   ],
+                  if (plan.location != null) ...[
+                    const SizedBox(height: 6),
+                    Text('📍 ${plan.location}',
+                        style: const TextStyle(
+                            color: TromblColors.textSub, fontSize: 13)),
+                  ],
                   const SizedBox(height: 20),
 
                   // ── Non-owner RSVP ────────────────────────────────────────
@@ -210,9 +216,10 @@ class PlanDetailScreen extends ConsumerWidget {
                             return 0;
                           });
 
-                        final inCount    = members.where((m) => m.status == 'in').length;
-                        final maybeCount = members.where((m) => m.status == 'maybe').length;
-                        final outCount   = members.where((m) => m.status == 'out').length;
+                        final inCount      = members.where((m) => m.status == 'in').length;
+                        final maybeCount   = members.where((m) => m.status == 'maybe').length;
+                        final outCount     = members.where((m) => m.status == 'out').length;
+                        final pendingCount = members.where((m) => m.status == 'pending').length;
 
                         final profiles = ref.watch(memberProfilesProvider(planId)).value ?? {};
 
@@ -238,7 +245,7 @@ class PlanDetailScreen extends ConsumerWidget {
                                     if (members.isNotEmpty) ...[
                                       const Spacer(),
                                       Text(
-                                        _statusSummary(inCount, maybeCount, outCount),
+                                        _statusSummary(inCount, maybeCount, outCount, pendingCount),
                                         style: const TextStyle(
                                           color: TromblColors.textMuted,
                                           fontSize: 11,
@@ -302,7 +309,7 @@ class PlanDetailScreen extends ConsumerWidget {
                                 if (members.isNotEmpty) ...[
                                   const Spacer(),
                                   Text(
-                                    _statusSummary(inCount, maybeCount, outCount),
+                                    _statusSummary(inCount, maybeCount, outCount, pendingCount),
                                     style: const TextStyle(
                                       color: TromblColors.textMuted,
                                       fontSize: 11,
@@ -374,11 +381,12 @@ class PlanDetailScreen extends ConsumerWidget {
     );
   }
 
-  static String _statusSummary(int inN, int maybeN, int outN) {
+  static String _statusSummary(int inN, int maybeN, int outN, int pendingN) {
     final parts = <String>[];
-    if (inN    > 0) parts.add('$inN in');
-    if (maybeN > 0) parts.add('$maybeN maybe');
-    if (outN   > 0) parts.add('$outN out');
+    if (inN      > 0) parts.add('$inN accepted');
+    if (pendingN > 0) parts.add('$pendingN pending');
+    if (maybeN   > 0) parts.add('$maybeN maybe');
+    if (outN     > 0) parts.add('$outN declined');
     return parts.join(' · ');
   }
 }
@@ -635,10 +643,11 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = switch (member.status) {
-      'in'    => ('🙌', TromblColors.fomo),
-      'out'   => ('🙅', TromblColors.textMuted),
-      _       => ('🤔', TromblColors.jomo),
+    final (icon, label, color) = switch (member.status) {
+      'in'      => ('✅', 'accepted', TromblColors.fomo),
+      'out'     => ('❌', 'declined', TromblColors.textMuted),
+      'pending' => ('⏳', 'pending', TromblColors.textSub),
+      _         => ('🤔', 'maybe', TromblColors.jomo),
     };
 
     final name = isMe
@@ -675,7 +684,7 @@ class _MemberRow extends StatelessWidget {
               ],
             ),
           ),
-          Text('$icon  ${member.status}',
+          Text('$icon  $label',
               style: TextStyle(color: color, fontSize: 13)),
         ],
       ),

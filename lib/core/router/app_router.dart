@@ -18,7 +18,7 @@ import '../../features/checkin/presentation/day_summary_screen.dart'
     show DaySummaryScreen, DaySummaryScreenArgs, DaySummaryScreenLoader;
 import '../../features/summary/presentation/summary_screen.dart';
 import '../../features/plan/presentation/plan_landing_screen.dart';
-import '../../features/plan/presentation/create_plan_screen.dart';
+import '../../features/make_plan/presentation/make_plan_screen.dart';
 import '../../features/plans/presentation/plan_detail_screen.dart';
 import '../../features/plans/presentation/join_plan_screen.dart';
 import '../../features/decide/presentation/decide_screen.dart';
@@ -169,10 +169,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             s.pageKey, PlanDetailScreen(planId: s.pathParameters['id']!)),
       ),
       GoRoute(
-        path: '/create-plan',
-        redirect: (_, s) => s.extra is CreatePlanArgs ? null : '/home',
+        path: '/make-plan',
+        redirect: (_, s) => s.extra is MakePlanArgs ? null : '/home',
         pageBuilder: (_, s) =>
-            _page(s.pageKey, CreatePlanScreen(args: s.extra as CreatePlanArgs)),
+            _page(s.pageKey, MakePlanScreen(args: s.extra as MakePlanArgs)),
       ),
       GoRoute(
         path: '/join-plan',

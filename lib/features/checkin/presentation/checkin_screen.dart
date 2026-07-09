@@ -5,8 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
-import '../../../shared/models/models.dart';
 import '../../vibe/providers/session_providers.dart';
+import '../domain/checkin_item.dart';
 import '../providers/checkin_providers.dart';
 import '../../summary/presentation/summary_screen.dart';
 
@@ -18,7 +18,7 @@ class CheckinScreen extends ConsumerWidget {
     final session = ref.watch(activeSessionProvider);
     final vibe = session?.vibe ?? 'fomo';
     final accent = TromblColors.accentFor(vibe);
-    final picksAsync = ref.watch(checkinPicksProvider);
+    final itemsAsync = ref.watch(checkinPicksProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -50,9 +50,19 @@ class CheckinScreen extends ConsumerWidget {
                 'tap what u actually did.',
                 style: TextStyle(color: TromblColors.textMuted, fontSize: 13),
               ),
+              itemsAsync.maybeWhen(
+                data: (items) => items.isEmpty
+                    ? const SizedBox.shrink()
+                    : _ProgressLine(
+                        done: items.where((i) => i.done).length,
+                        total: items.length,
+                        accent: accent,
+                      ),
+                orElse: () => const SizedBox.shrink(),
+              ),
               const SizedBox(height: 20),
               Expanded(
-                child: picksAsync.when(
+                child: itemsAsync.when(
                   loading: () => const Center(
                     child: Text(
                       'loading ur day...',
@@ -67,7 +77,7 @@ class CheckinScreen extends ConsumerWidget {
                           color: TromblColors.textMuted, fontSize: 14),
                     ),
                   ),
-                  data: (picks) => picks.isEmpty
+                  data: (items) => items.isEmpty
                       ? const Center(
                           child: Text(
                             "u haven't picked anything today yet.",
@@ -76,21 +86,21 @@ class CheckinScreen extends ConsumerWidget {
                           ),
                         )
                       : ListView.builder(
-                          itemCount: picks.length,
-                          itemBuilder: (_, i) => _PickRow(
-                            pick: picks[i],
+                          itemCount: items.length,
+                          itemBuilder: (_, i) => _CheckinItemRow(
+                            item: items[i],
                             accent: accent,
                             onToggle: (done) => ref
                                 .read(checkinPicksProvider.notifier)
-                                .toggle(picks[i].id, done),
+                                .toggle(items[i].id, done),
                           ),
                         ),
                 ),
               ),
-              picksAsync.maybeWhen(
-                data: (picks) => picks.isEmpty
+              itemsAsync.maybeWhen(
+                data: (items) => items.isEmpty
                     ? const SizedBox.shrink()
-                    : _WrapButton(vibe: vibe, picks: picks, accent: accent),
+                    : _WrapButton(vibe: vibe, items: items, accent: accent),
                 orElse: () => const SizedBox.shrink(),
               ),
               const SizedBox(height: 24),
@@ -102,33 +112,59 @@ class CheckinScreen extends ConsumerWidget {
   }
 }
 
-class _PickRow extends StatelessWidget {
-  const _PickRow({
-    required this.pick,
+class _ProgressLine extends StatelessWidget {
+  const _ProgressLine({
+    required this.done,
+    required this.total,
+    required this.accent,
+  });
+  final int done;
+  final int total;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        '$done/$total done so far',
+        style: TextStyle(
+          color: accent,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckinItemRow extends StatelessWidget {
+  const _CheckinItemRow({
+    required this.item,
     required this.accent,
     required this.onToggle,
   });
-  final Pick pick;
+  final CheckinItem item;
   final Color accent;
   final ValueChanged<bool> onToggle;
 
   @override
   Widget build(BuildContext context) {
+    final done = item.done;
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
-        onToggle(!pick.done);
+        onToggle(!done);
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: pick.done
-              ? accent.withValues(alpha:0.08)
-              : TromblColors.card,
+          color: done ? accent.withValues(alpha: 0.08) : TromblColors.card,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: pick.done ? accent.withValues(alpha:0.3) : Colors.transparent,
+            color: done ? accent.withValues(alpha: 0.3) : Colors.transparent,
           ),
         ),
         child: Row(
@@ -138,29 +174,40 @@ class _PickRow extends StatelessWidget {
               width: 20,
               height: 20,
               decoration: BoxDecoration(
-                color: pick.done ? accent : Colors.transparent,
+                color: done ? accent : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: pick.done ? accent : TromblColors.textMuted,
+                  color: done ? accent : TromblColors.textMuted,
                   width: 1.5,
                 ),
               ),
-              child: pick.done
+              child: done
                   ? const Icon(Icons.check, size: 13, color: Color(0xFF0B0B0D))
                   : null,
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                pick.label,
+                item.label,
                 style: TextStyle(
-                  color: pick.done ? TromblColors.text : TromblColors.textSub,
+                  color: done ? TromblColors.text : TromblColors.textSub,
                   fontSize: 15,
-                  fontWeight:
-                      pick.done ? FontWeight.w600 : FontWeight.w500,
-                  decoration:
-                      pick.done ? TextDecoration.none : TextDecoration.none,
+                  fontWeight: done ? FontWeight.w600 : FontWeight.w500,
                 ),
+              ),
+            ),
+            if (item is CheckinAiPickItem) ...[
+              const SizedBox(width: 6),
+              Text('✨',
+                  style: TextStyle(fontSize: 11, color: accent.withValues(alpha: 0.7))),
+            ],
+            const SizedBox(width: 8),
+            Text(
+              done ? '✅ done' : '❌ skipped',
+              style: TextStyle(
+                color: done ? accent : TromblColors.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -173,17 +220,17 @@ class _PickRow extends StatelessWidget {
 class _WrapButton extends ConsumerWidget {
   const _WrapButton({
     required this.vibe,
-    required this.picks,
+    required this.items,
     required this.accent,
   });
   final String vibe;
-  final List<Pick> picks;
+  final List<CheckinItem> items;
   final Color accent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final done = picks.where((p) => p.done).length;
-    final total = picks.length;
+    final done = items.where((i) => i.done).length;
+    final total = items.length;
 
     return GestureDetector(
       onTap: () async {

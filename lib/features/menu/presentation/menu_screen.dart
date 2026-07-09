@@ -95,28 +95,7 @@ class MenuScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      if (pickCount >= 2)
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            context.push('/checkin');
-                          },
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 6),
-                            child: Text(
-                              'wrap up',
-                              style: TextStyle(
-                                color: TromblColors.textMuted,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                fontFamily: TromblText.sans,
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (pickCount >= 2) const SizedBox(width: 14),
+                      const SizedBox(width: 14),
                       GestureDetector(
                         onTap: () {
                           ref.read(analyticsRepositoryProvider).trackProfileOpened();

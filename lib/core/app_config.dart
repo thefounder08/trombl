@@ -32,6 +32,9 @@ class AppConfig {
   /// `io.trombl://` deep link. See docs/AUTHENTICATION_ARCHITECTURE.md.
   static const appleRedirectUri = String.fromEnvironment('APPLE_REDIRECT_URI');
 
+  /// Which build flavor is running (dev | staging | prod).
+  static const appFlavor = String.fromEnvironment('APP_FLAVOR', defaultValue: 'prod');
+
   static bool get isConfigured =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

@@ -96,6 +96,29 @@ class DecideRepository {
     } catch (_) {}
   }
 
+  /// Accepted AI picks tied to a session — used by the Wrap Up flow so a
+  /// day's "did I do it" review covers AI-suggested picks too, not just
+  /// menu picks. `done` may still be null (unanswered); wrapping the day
+  /// is what finalizes it.
+  Future<List<AiPick>> aiPicksForSession(String sessionId) async {
+    final uid = _uid;
+    if (uid == null) return [];
+    try {
+      final rows = await _client
+          .from('ai_picks')
+          .select()
+          .eq('user_id', uid)
+          .eq('session_id', sessionId)
+          .eq('accepted', true)
+          .order('created_at', ascending: false);
+      return (rows as List)
+          .map((r) => AiPick.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Accepted picks from the last 36 hours where done is still null — the
   /// open loops that need a check-in nudge.
   Future<List<AiPick>> pendingCheckins({int limit = 3}) async {

@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide Session;
 
 import '../../../core/app_config.dart';
 import '../../../shared/result.dart';
+import '../../../shared/models/models.dart' show Profile;
 import '../domain/plan_models.dart';
 
 typedef LandingData = ({
@@ -26,6 +27,7 @@ class FeaturePlanRepository {
     required String vibe,
     required String title,
     String?   detail,
+    String?   location,
     DateTime? startsAt,
     DateTime? expiresAt,
   }) async {
@@ -37,6 +39,7 @@ class FeaturePlanRepository {
             'vibe': vibe,
             'title': title,
             'detail': ?detail,
+            'location': ?location,
             'starts_at': ?startsAt?.toIso8601String(),
             'expires_at': ?expiresAt?.toIso8601String(),
           })
@@ -185,6 +188,121 @@ class FeaturePlanRepository {
       return PlanMember.fromJson(rows.first);
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Plans the current user owns or has a plan_members row for.
+  Future<List<Plan>> myPlans() async {
+    try {
+      final owned = await _client
+          .from('plans')
+          .select()
+          .eq('owner_id', _uid)
+          .order('created_at', ascending: false);
+
+      final memberRows = await _client
+          .from('plan_members')
+          .select('plan_id')
+          .eq('user_id', _uid);
+      final memberIds =
+          (memberRows as List).map((r) => r['plan_id'] as String).toList();
+
+      List<dynamic> joined = [];
+      if (memberIds.isNotEmpty) {
+        joined = await _client
+            .from('plans')
+            .select()
+            .inFilter('id', memberIds)
+            .neq('owner_id', _uid)
+            .order('created_at', ascending: false);
+      }
+
+      final all = [
+        ...owned.map((r) => Plan.fromJson(Map<String, dynamic>.from(r as Map))),
+        ...joined.map((r) => Plan.fromJson(Map<String, dynamic>.from(r as Map))),
+      ];
+      // A plan can surface more than once (e.g. duplicate plan_member rows)
+      // — keep one row per plan id.
+      final seen = <String>{};
+      return all.where((p) => seen.add(p.id)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// All members of a plan, regardless of who's asking (RLS scopes this to
+  /// the plan's owner or an existing member).
+  Future<List<PlanMember>> membersFor(String planId) async {
+    try {
+      final rows = await _client
+          .from('plan_members')
+          .select()
+          .eq('plan_id', planId);
+      return (rows as List)
+          .map((r) => PlanMember.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Live view of a plan's members — used by the host's Plan Details screen
+  /// so accept/decline responses show up without a manual refresh.
+  /// Requires plan_members to be in the supabase_realtime publication.
+  Stream<List<PlanMember>> membersStream(String planId) {
+    return _client
+        .from('plan_members')
+        .stream(primaryKey: ['id'])
+        .eq('plan_id', planId)
+        .map((rows) => rows.map(PlanMember.fromJson).toList());
+  }
+
+  /// Owner-only: cancel/delete a plan.
+  Future<Result<void>> deletePlan(String planId) async {
+    try {
+      await _client.from('plans').delete().eq('id', planId).eq('owner_id', _uid);
+      return const Success(null);
+    } catch (_) {
+      return const Failure("couldn't cancel the plan. try again?");
+    }
+  }
+
+  /// Search existing Trombl users by display name or handle, for the Invite
+  /// Friends step. Excludes the caller. There's no friends/contacts model in
+  /// this app — this is a direct profiles search, not a social graph.
+  Future<List<Profile>> searchProfiles(String query, {int limit = 10}) async {
+    final q = query.trim();
+    if (q.isEmpty) return [];
+    try {
+      final rows = await _client
+          .from('profiles')
+          .select()
+          .or('display_name.ilike.%$q%,handle.ilike.%$q%')
+          .neq('id', _uid)
+          .limit(limit);
+      return (rows as List)
+          .map((r) => Profile.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Owner-only: pre-invite a specific existing user with status='pending',
+  /// before they've responded. Plain insert (not upsert) — if they already
+  /// have a row (already invited, or already responded), leave it alone
+  /// rather than downgrading a real response back to pending.
+  Future<Result<void>> invitePending(String planId, String userId) async {
+    try {
+      await _client
+          .from('plan_members')
+          .insert({'plan_id': planId, 'user_id': userId, 'status': 'pending'});
+      return const Success(null);
+    } catch (_) {
+      // Most common cause: unique(plan_id, user_id) already satisfied —
+      // they're already invited or already responded, which is the desired
+      // end state either way.
+      return const Success(null);
     }
   }
 }

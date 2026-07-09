@@ -56,6 +56,16 @@ class ActiveSessionNotifier extends Notifier<Session?> {
     state = session.copyWith(vibe: newVibe);
   }
 
+  /// Reflects a just-completed wrap-up in local state. The DB write happens
+  /// in SessionRepository.wrapSession — this just keeps the in-memory
+  /// session (which Home reads synchronously) from going stale until the
+  /// next cold-start restore.
+  void markWrapped() {
+    final session = state;
+    if (session == null) return;
+    state = session.copyWith(wrappedAt: DateTime.now());
+  }
+
   void clear() => state = null;
 }
 

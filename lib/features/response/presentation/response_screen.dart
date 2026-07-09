@@ -12,7 +12,7 @@ import '../../home/providers/home_providers.dart';
 import '../../menu/domain/action_engine.dart';
 import '../../menu/domain/menu_models.dart';
 import '../../menu/presentation/action_launcher.dart';
-import '../../plan/presentation/create_plan_screen.dart';
+import '../../make_plan/presentation/make_plan_screen.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/reaction_provider.dart';
 
@@ -280,15 +280,6 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
 
   Future<void> _onSecondaryTap(String url) async {
     await ActionLauncher.launchExternal(url, context: context);
-  }
-
-  // ── Done / not done ───────────────────────────────────────────────────────
-
-  Future<void> _markDone(bool done) async {
-    HapticFeedback.selectionClick();
-    await ref.read(sessionRepositoryProvider).setPickDone(args.pick.id, done);
-    ref.invalidate(homeGreetingProvider);
-    if (mounted) context.go('/home');
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -630,16 +621,21 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
       );
     }
 
-    // Post-launch CTAs (after any external app opened).
+    // Post-launch CTAs (after any external app opened). Resolving "did u
+    // actually do it" now happens exclusively via TaskWrapupController's
+    // resume popup / Wrap Up — not here, to avoid asking twice.
     if (_launched) {
       return _LaunchedCtas(
         accent: accent,
         tag: args.tag,
-        onDone: _markDone,
         secondaryLabel: _secondaryLabel,
         onSecondary: _secondaryUrl != null
             ? () => _onSecondaryTap(_secondaryUrl!)
             : null,
+        onBackHome: () {
+          ref.invalidate(homeGreetingProvider);
+          context.go('/home');
+        },
       );
     }
 
@@ -652,9 +648,11 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
         onTap: _onMultiButtonTap,
         onPlan: () {
           HapticFeedback.mediumImpact();
-          context.push('/create-plan',
-              extra: CreatePlanArgs(
-                  vibe: args.vibe, optionLabel: args.optionLabel));
+          context.push('/make-plan',
+              extra: MakePlanArgs(
+                  vibe: args.vibe,
+                  initialOption: MenuOption(
+                      id: args.pick.optionId, label: args.optionLabel, tag: args.tag)));
         },
         onShare: () {
           HapticFeedback.lightImpact();
@@ -706,9 +704,13 @@ class _ResponseScreenState extends ConsumerState<ResponseScreen> {
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.mediumImpact();
-                  context.push('/create-plan',
-                      extra: CreatePlanArgs(
-                          vibe: args.vibe, optionLabel: args.optionLabel));
+                  context.push('/make-plan',
+                      extra: MakePlanArgs(
+                          vibe: args.vibe,
+                          initialOption: MenuOption(
+                              id: args.pick.optionId,
+                              label: args.optionLabel,
+                              tag: args.tag)));
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -850,13 +852,13 @@ class _LaunchedCtas extends StatelessWidget {
   const _LaunchedCtas({
     required this.accent,
     required this.tag,
-    required this.onDone,
+    required this.onBackHome,
     this.secondaryLabel,
     this.onSecondary,
   });
   final Color accent;
   final String tag;
-  final void Function(bool done) onDone;
+  final VoidCallback onBackHome;
   final String? secondaryLabel;
   final VoidCallback? onSecondary;
 
@@ -914,6 +916,15 @@ class _LaunchedCtas extends StatelessWidget {
                   height: 1.4,
                 ),
               ),
+              const SizedBox(height: 8),
+              const Text(
+                "trom'll check in later 👀",
+                style: TextStyle(
+                  color: TromblColors.textMuted,
+                  fontSize: 11,
+                  fontFamily: TromblText.sans,
+                ),
+              ),
             ],
           ),
         ),
@@ -945,9 +956,10 @@ class _LaunchedCtas extends StatelessWidget {
           const SizedBox(height: 10),
         ],
 
-        // "fr did it" — primary
+        // Back home — "did u actually do it" resolves via the resume popup
+        // / Wrap Up now, not here.
         GestureDetector(
-          onTap: () => onDone(true),
+          onTap: onBackHome,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
@@ -956,36 +968,12 @@ class _LaunchedCtas extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Text(
-              'fr did it ✓',
+              'back to home →',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xFF090909),
                 fontWeight: FontWeight.w800,
                 fontSize: 16,
-                fontFamily: TromblText.sans,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-
-        // "nah" — ghost
-        GestureDetector(
-          onTap: () => onDone(false),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: TromblColors.border),
-            ),
-            child: const Text(
-              "nah didn't happen",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: TromblColors.textSub,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
                 fontFamily: TromblText.sans,
               ),
             ),

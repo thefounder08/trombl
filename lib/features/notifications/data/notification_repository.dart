@@ -26,6 +26,22 @@ class NotificationRepository {
     }
   }
 
+  /// Live view of the current user's notifications — used so the bell
+  /// updates the moment a notification lands (e.g. a plan invite) instead
+  /// of only on next fetch. Requires notifications to be in the
+  /// supabase_realtime publication.
+  Stream<List<AppNotification>> notificationsStream({int limit = 50}) {
+    final uid = _uid;
+    if (uid == null) return Stream.value(const []);
+    return _client
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', uid)
+        .order('created_at', ascending: false)
+        .limit(limit)
+        .map((rows) => rows.map(AppNotification.fromJson).toList());
+  }
+
   Future<int> unreadCount() async {
     final uid = _uid;
     if (uid == null) return 0;

@@ -12,6 +12,7 @@ import '../../../shared/result.dart';
 import '../data/plan_repository.dart';
 import '../domain/plan_phrasing.dart';
 import '../providers/plan_providers.dart';
+import '../../plans/providers/plan_providers.dart' show myPlansProvider;
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -57,12 +58,16 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
     final isLoggedIn = ref.read(currentUserProvider) != null;
     if (!isLoggedIn) return;
 
-    // Re-opening invite after already joining → show confirmation immediately.
+    // Re-opening invite after already responding → show confirmation
+    // immediately. A 'pending' row means they were invited but haven't
+    // actually responded yet (see the Make Plan flow's Invite Friends
+    // step) — that's not a response, so fall through to the normal
+    // i'm-in/can't-tonight view instead of a stale "confirmed" screen.
     final membership = await ref
         .read(featurePlanRepoProvider)
         .myMembership(data.plan.id);
     if (!mounted) return;
-    if (membership != null) {
+    if (membership != null && membership.status != 'pending') {
       setState(() {
         _confirmed = true;
         _confirmedStatus = membership.status;
@@ -102,6 +107,9 @@ class _PlanLandingScreenState extends ConsumerState<PlanLandingScreen> {
     switch (result) {
       case Success():
         ref.read(analyticsRepositoryProvider).trackPlanJoined(status: status);
+        // Same gap as plan creation — Home's myPlansProvider watch survives
+        // underneath this route and won't refetch on its own.
+        ref.invalidate(myPlansProvider);
         // Clear pending intent — join is written.
         ref.read(pendingPlanStatusProvider.notifier).state = null;
         unawaited(PendingJoinService.clear());

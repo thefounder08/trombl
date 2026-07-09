@@ -36,11 +36,11 @@ class NotificationCenterScreen extends ConsumerWidget {
                     data: (items) => items.any((n) => !n.isRead)
                         ? GestureDetector(
                             onTap: () async {
+                              // Realtime reflects the is_read update on its
+                              // own — no manual invalidation needed.
                               await ref
                                   .read(notificationRepositoryProvider)
                                   .markAllRead();
-                              ref.invalidate(notificationsProvider);
-                              ref.invalidate(unreadNotificationCountProvider);
                             },
                             child: const Text('mark all read',
                                 style: TextStyle(
@@ -102,8 +102,6 @@ class NotificationCenterScreen extends ConsumerWidget {
                               await ref
                                   .read(notificationRepositoryProvider)
                                   .markRead(items[i].id);
-                              ref.invalidate(notificationsProvider);
-                              ref.invalidate(unreadNotificationCountProvider);
                             }
                             final route = resolveNotificationRoute(
                                 items[i].kind, items[i].data);

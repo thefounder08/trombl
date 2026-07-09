@@ -6,8 +6,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/trombl_theme.dart';
 import '../../../shared/models/models.dart';
+import '../../checkin/domain/checkin_item.dart';
+import '../../checkin/providers/checkin_providers.dart';
 import '../../decide/domain/ai_pick_model.dart';
-import '../../decide/providers/decide_providers.dart';
+import '../../make_plan/presentation/make_plan_screen.dart';
 import '../../menu/domain/menu_data.dart';
 import '../../menu/domain/menu_models.dart';
 import '../../menu/presentation/widgets/options_sheet.dart';
@@ -15,6 +17,18 @@ import '../../notifications/providers/notification_providers.dart';
 import '../../plans/providers/plan_providers.dart';
 import '../../vibe/providers/session_providers.dart';
 import '../providers/home_providers.dart';
+
+/// "📦 wrap up" chip label — count of what's still unresolved today. Reads
+/// checkinPicksProvider (the exact same session-scoped list Wrap Up shows)
+/// rather than homeGreetingProvider's pendingCheckins, which is a 36h
+/// window across *all* sessions, not just today's — using two differently
+/// -scoped queries to count "the same thing" is how the badge and the
+/// screen it links to end up disagreeing.
+String _wrapUpLabel(List<CheckinItem>? items) {
+  if (items == null) return '📦 wrap up';
+  final pending = items.where((i) => !i.done).length;
+  return pending > 0 ? '📦 wrap up · $pending' : '📦 wrap up';
+}
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -57,6 +71,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final vibe = session.vibe;
     final accent = TromblColors.accentFor(vibe);
     final greetingAsync = ref.watch(homeGreetingProvider);
+    final checkinAsync = ref.watch(checkinPicksProvider);
     final myPlans = ref.watch(myPlansProvider);
     final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
 
@@ -88,7 +103,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       GestureDetector(
                         onTap: () {
                           HapticFeedback.lightImpact();
-                          context.push('/checkin');
+                          session.wrappedAt == null
+                              ? context.push('/checkin')
+                              : context.push('/day-summary/${session.id}');
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -98,9 +115,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: TromblColors.border),
                           ),
-                          child: const Text(
-                            '📦 wrap up',
-                            style: TextStyle(
+                          child: Text(
+                            session.wrappedAt != null
+                                ? '✅ wrapped'
+                                : _wrapUpLabel(checkinAsync.value),
+                            style: const TextStyle(
                               color: TromblColors.textSub,
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -172,6 +191,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               _Zone3(
                 myPlans: myPlans,
                 uid: uid,
+                vibe: vibe,
                 greetingData: greetingAsync.value,
               ),
             ],
@@ -235,8 +255,7 @@ class _NotificationBell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unreadAsync = ref.watch(unreadNotificationCountProvider);
-    final unread = unreadAsync.maybeWhen(data: (n) => n, orElse: () => 0);
+    final unread = ref.watch(unreadNotificationCountProvider);
 
     return GestureDetector(
       onTap: () {
@@ -464,10 +483,12 @@ class _Zone3 extends ConsumerWidget {
   const _Zone3({
     required this.myPlans,
     required this.uid,
+    required this.vibe,
     required this.greetingData,
   });
   final AsyncValue<List<Plan>> myPlans;
   final String? uid;
+  final String vibe;
   final HomeGreetingData? greetingData;
 
   @override
@@ -481,24 +502,45 @@ class _Zone3 extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Plans ────────────────────────────────────────────────────────────
+        // ── Plans — header always visible, this is the one entry point into
+        // the Make Plan flow when there's no already-picked activity to
+        // jump off of ──────────────────────────────────────────────────────
         myPlans.when(
           loading: () => const SizedBox.shrink(),
           error: (_, _) => const SizedBox.shrink(),
           data: (plans) {
-            if (plans.isEmpty) return const SizedBox.shrink();
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'UR PLANS',
-                  style: TextStyle(
-                    color: TromblColors.textMuted,
-                    fontSize: 9,
-                    letterSpacing: 1.5,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: TromblText.sans,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'UR PLANS',
+                      style: TextStyle(
+                        color: TromblColors.textMuted,
+                        fontSize: 9,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: TromblText.sans,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.push('/make-plan', extra: MakePlanArgs(vibe: vibe));
+                      },
+                      child: Text(
+                        '+ new plan',
+                        style: TextStyle(
+                          color: TromblColors.accentFor(vibe),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: TromblText.sans,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
                 ...plans.map((plan) => _PlanTile(
@@ -617,42 +659,19 @@ class _ActivityHandle extends StatelessWidget {
 
 // ─── Activity sheet (ongoing + summary) ──────────────────────────────────────
 
-class _ActivitySheet extends ConsumerStatefulWidget {
+class _ActivitySheet extends ConsumerWidget {
   const _ActivitySheet({required this.greetingData});
   final HomeGreetingData greetingData;
 
   @override
-  ConsumerState<_ActivitySheet> createState() => _ActivitySheetState();
-}
-
-class _ActivitySheetState extends ConsumerState<_ActivitySheet> {
-  final Set<String> _dismissed = {};
-  final Set<String> _menuDismissed = {};
-
-  Future<void> _answer(AiPick pick, bool done) async {
-    HapticFeedback.selectionClick();
-    setState(() => _dismissed.add(pick.id));
-    final repo = ref.read(decideRepositoryProvider);
-    await repo.markDone(pick.id, done: done);
-    ref.invalidate(homeGreetingProvider);
-  }
-
-  Future<void> _answerMenuPick(Pick pick, bool done) async {
-    HapticFeedback.selectionClick();
-    setState(() => _menuDismissed.add(pick.id));
-    await ref.read(sessionRepositoryProvider).setPickDone(pick.id, done);
-    ref.invalidate(homeGreetingProvider);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pending = widget.greetingData.pendingCheckins
-        .where((p) => !_dismissed.contains(p.id))
-        .toList();
-    final recent = widget.greetingData.recentAccepted.take(5).toList();
-    final todayPicks = widget.greetingData.todayPicks
-        .where((p) => !_menuDismissed.contains(p.id))
-        .toList();
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Read-only here — resolving "did u actually do it" happens exclusively
+    // via the resume popup / Wrap Up now, not this sheet, so there's only
+    // one place that ever asks.
+    final pending = greetingData.pendingCheckins;
+    final recent = greetingData.recentAccepted.take(5).toList();
+    final todayPicks = greetingData.todayPicks;
+    final hasUnresolved = pending.isNotEmpty || todayPicks.isNotEmpty;
     final sessionVibe = ref.watch(activeSessionProvider)?.vibe ?? 'fomo';
     final sessionAccent = TromblColors.accentFor(sessionVibe);
 
@@ -699,7 +718,6 @@ class _ActivitySheetState extends ConsumerState<_ActivitySheet> {
                     ...todayPicks.map((p) => _MenuPickCard(
                           pick: p,
                           accent: sessionAccent,
-                          onAnswer: _answerMenuPick,
                         )),
                   ] else
                     const Padding(
@@ -726,8 +744,36 @@ class _ActivitySheetState extends ConsumerState<_ActivitySheet> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    ...pending.map(
-                        (p) => _CheckInCard(pick: p, onAnswer: _answer)),
+                    ...pending.map((p) => _CheckInCard(pick: p)),
+                    const SizedBox(height: 24),
+                  ],
+                  if (hasUnresolved) ...[
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        GoRouter.of(context).push('/checkin');
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: sessionAccent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                          border:
+                              Border.all(color: sessionAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          'wrap up now →',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: sessionAccent,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            fontFamily: TromblText.sans,
+                          ),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 24),
                   ],
                   if (recent.isNotEmpty) ...[
@@ -826,9 +872,8 @@ class _RecentPickRow extends StatelessWidget {
 // ─── Check-in card ────────────────────────────────────────────────────────────
 
 class _CheckInCard extends StatelessWidget {
-  const _CheckInCard({required this.pick, required this.onAnswer});
+  const _CheckInCard({required this.pick});
   final AiPick pick;
-  final void Function(AiPick, bool) onAnswer;
 
   @override
   Widget build(BuildContext context) {
@@ -842,77 +887,31 @@ class _CheckInCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'did u actually ${pick.pickText.toLowerCase()}?',
-            style: const TextStyle(
-              color: TromblColors.text,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              fontFamily: TromblText.sans,
-              height: 1.3,
+          Expanded(
+            child: Text(
+              pick.pickText,
+              style: const TextStyle(
+                color: TromblColors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                fontFamily: TromblText.sans,
+                height: 1.3,
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _AnswerBtn(
-                label: 'fr did it',
-                accent: accent,
-                filled: true,
-                onTap: () => onAnswer(pick, true),
-              ),
-              const SizedBox(width: 8),
-              _AnswerBtn(
-                label: 'nah',
-                accent: TromblColors.textMuted,
-                filled: false,
-                onTap: () => onAnswer(pick, false),
-              ),
-            ],
+          const SizedBox(width: 8),
+          Text(
+            'waiting on u 👀',
+            style: TextStyle(
+              color: accent,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              fontFamily: TromblText.sans,
+            ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AnswerBtn extends StatelessWidget {
-  const _AnswerBtn({
-    required this.label,
-    required this.accent,
-    required this.filled,
-    required this.onTap,
-  });
-  final String label;
-  final Color accent;
-  final bool filled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: filled ? accent.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: accent.withValues(alpha: filled ? 0.3 : 0.2),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: filled ? accent : TromblColors.textSub,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            fontFamily: TromblText.sans,
-          ),
-        ),
       ),
     );
   }
@@ -924,11 +923,9 @@ class _MenuPickCard extends StatelessWidget {
   const _MenuPickCard({
     required this.pick,
     required this.accent,
-    required this.onAnswer,
   });
   final Pick pick;
   final Color accent;
-  final void Function(Pick, bool) onAnswer;
 
   @override
   Widget build(BuildContext context) {
@@ -940,36 +937,29 @@ class _MenuPickCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'did u actually ${pick.label.toLowerCase()}?',
-            style: const TextStyle(
-              color: TromblColors.text,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              fontFamily: TromblText.sans,
-              height: 1.3,
+          Expanded(
+            child: Text(
+              pick.label,
+              style: const TextStyle(
+                color: TromblColors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                fontFamily: TromblText.sans,
+                height: 1.3,
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _AnswerBtn(
-                label: 'fr did it',
-                accent: accent,
-                filled: true,
-                onTap: () => onAnswer(pick, true),
-              ),
-              const SizedBox(width: 8),
-              _AnswerBtn(
-                label: 'nah',
-                accent: TromblColors.textMuted,
-                filled: false,
-                onTap: () => onAnswer(pick, false),
-              ),
-            ],
+          const SizedBox(width: 8),
+          Text(
+            'waiting on u 👀',
+            style: TextStyle(
+              color: accent,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              fontFamily: TromblText.sans,
+            ),
           ),
         ],
       ),
@@ -987,7 +977,18 @@ class _PlanTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final inCount = ref.watch(planInCountProvider(plan.id)).value;
+    final myStatus = ref.watch(myMembershipProvider(plan.id)).value?.status;
     final accent = TromblColors.accentFor(plan.vibe);
+
+    final statusLabel = isOwner
+        ? 'ur plan'
+        : switch (myStatus) {
+            'in' => 'u\'re in',
+            'maybe' => 'u said maybe',
+            'out' => 'u\'re out',
+            'pending' => 'u\'re invited',
+            _ => 'u\'re in',
+          };
 
     return GestureDetector(
       onTap: () {
@@ -1021,7 +1022,7 @@ class _PlanTile extends ConsumerWidget {
                   ),
                   Text(
                     [
-                      isOwner ? 'ur plan' : 'u\'re in',
+                      statusLabel,
                       if (inCount != null && inCount > 0) '$inCount in',
                     ].join(' · '),
                     style: const TextStyle(

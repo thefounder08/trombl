@@ -70,6 +70,7 @@ abstract class Plan with _$Plan {
     required String vibe,
     required String title,
     String? detail,
+    String? location,
     @JsonKey(name: 'share_token') required String shareToken,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'starts_at') DateTime? startsAt,

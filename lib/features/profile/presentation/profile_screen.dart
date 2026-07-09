@@ -29,7 +29,7 @@ typedef TromsReadData = ({
   List<MemoryNode> memoryNodes,
 });
 
-final _tromsReadDataProvider = FutureProvider.autoDispose<TromsReadData>((ref) async {
+final tromsReadDataProvider = FutureProvider.autoDispose<TromsReadData>((ref) async {
   final sessionRepo = ref.watch(sessionRepositoryProvider);
   final decideRepo = ref.watch(decideRepositoryProvider);
   final sessions = await sessionRepo.recentSessions(days: 90);
@@ -470,7 +470,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final readData = ref.watch(_tromsReadDataProvider);
+    final readData = ref.watch(tromsReadDataProvider);
     final myPlans = ref.watch(myPlansProvider);
     final uid = ref.watch(supabaseProvider).auth.currentUser?.id;
     final isGuest = ref.watch(guestIdentityServiceProvider).isGuest;
@@ -606,6 +606,19 @@ class ProfileScreen extends ConsumerWidget {
                         );
                       },
                       orElse: () => const SizedBox.shrink(),
+                    ),
+
+                    const SizedBox(height: 22),
+                    GestureDetector(
+                      onTap: () => context.push('/history'),
+                      child: const Text(
+                        'ur wrapped days →',
+                        style: TextStyle(
+                          color: TromblColors.textMuted,
+                          fontSize: 12,
+                          fontFamily: TromblText.sans,
+                        ),
+                      ),
                     ),
 
                     const SizedBox(height: 16),

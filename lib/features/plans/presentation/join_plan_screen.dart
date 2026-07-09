@@ -40,7 +40,7 @@ class _JoinPlanScreenState extends ConsumerState<JoinPlanScreen> {
 
     setState(() { _loading = true; _error = null; });
 
-    final result = await ref.read(planRepositoryProvider).getByToken(token);
+    final result = await ref.read(featurePlanRepoProvider).fetchByToken(token);
 
     if (!mounted) return;
     setState(() => _loading = false);
@@ -48,7 +48,7 @@ class _JoinPlanScreenState extends ConsumerState<JoinPlanScreen> {
     switch (result) {
       case Success(:final data):
         // Auto-join with "maybe" then navigate to detail
-        await ref.read(planRepositoryProvider).joinOrUpdate(data.id, 'maybe');
+        await ref.read(featurePlanRepoProvider).joinPlan(data.id, 'maybe');
         if (!mounted) return;
         ref.invalidate(myPlansProvider);
         context.go('/plan/${data.id}');

@@ -9,11 +9,13 @@ final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
 });
 
 final notificationsProvider =
-    FutureProvider.autoDispose<List<AppNotification>>((ref) async {
-  return ref.watch(notificationRepositoryProvider).recentNotifications();
+    StreamProvider.autoDispose<List<AppNotification>>((ref) {
+  return ref.watch(notificationRepositoryProvider).notificationsStream();
 });
 
-final unreadNotificationCountProvider =
-    FutureProvider.autoDispose<int>((ref) async {
-  return ref.watch(notificationRepositoryProvider).unreadCount();
+// Derived from the same live stream so the bell's badge count updates the
+// instant a notification arrives, not just its list.
+final unreadNotificationCountProvider = Provider.autoDispose<int>((ref) {
+  final notifications = ref.watch(notificationsProvider).value ?? const [];
+  return notifications.where((n) => !n.isRead).length;
 });

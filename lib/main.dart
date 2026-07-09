@@ -17,6 +17,7 @@ import 'core/notifications/notification_service.dart';
 import 'core/observability/analytics_service.dart';
 import 'core/observability/analytics_session_controller.dart';
 import 'core/observability/crash_service.dart';
+import 'features/checkin/task_wrapup_controller.dart';
 
 Future<void> main() async {
   // Use path-based URLs on web (/p/token) instead of hash-based (#/login).
@@ -101,12 +102,14 @@ class TromblApp extends ConsumerStatefulWidget {
 
 class _TromblAppState extends ConsumerState<TromblApp> {
   AnalyticsSessionController? _sessionController;
+  TaskWrapupController? _taskWrapupController;
 
   @override
   void initState() {
     super.initState();
     _listenAuth();
     _initAnalytics();
+    _taskWrapupController = TaskWrapupController(ref)..start();
   }
 
   Future<void> _initAnalytics() async {
@@ -178,6 +181,7 @@ class _TromblAppState extends ConsumerState<TromblApp> {
   @override
   void dispose() {
     _sessionController?.dispose();
+    _taskWrapupController?.dispose();
     super.dispose();
   }
 
